@@ -1,4 +1,3 @@
-import asyncio
 import os
 
 from aiogram import Bot, Dispatcher
@@ -19,7 +18,3 @@ async def start(message: Message):
 
 async def run_bot():
     await dp.start_polling(bot)
-
-
-if __name__ == "__main__":
-    asyncio.run(run_bot())
