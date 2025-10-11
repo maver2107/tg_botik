@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     DB_USER: str
     DB_PASS: str
     DB_NAME: str
+    BOT_TOKEN: str
 
     model_config = SettingsConfigDict(env_file=".env")
 
@@ -23,4 +24,3 @@ def get_settings():
 
 
 settings = get_settings()
-print(settings.DB_HOST)
