@@ -17,6 +17,19 @@ def get_gender_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
+def get_gender_interest_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text=Gender.get_display_gender_interest(Gender.MALE)),
+                KeyboardButton(text=Gender.get_display_gender_interest(Gender.FEMALE)),
+                KeyboardButton(text=Gender.get_display_gender_interest(Gender.SKIP_GENDER)),
+            ]
+        ],
+        resize_keyboard=True,
+    )
+
+
 def remove_keyboard() -> ReplyKeyboardRemove:
     """Удаление клавиатуры"""
     return ReplyKeyboardRemove()
