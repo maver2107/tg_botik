@@ -1,5 +1,5 @@
 from src.bot.services.questionnaire import QuestionnaireProcessService
-from src.users.dao import UsersDAO
+from src.bot.dao.user import UsersDAO
 
 
 def get_questionnaire_service() -> QuestionnaireProcessService:
