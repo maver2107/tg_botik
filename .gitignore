@@ -10,4 +10,7 @@ bot.log
 
 # Virtual environments
 .venv
-.env/
+
+
+# logger files
+projects.log
