@@ -9,3 +9,8 @@ class FormStates(StatesGroup):
     waiting_for_name = State()
     waiting_for_interests = State()
     waiting_for_photo = State()
+
+
+class DatingStates(StatesGroup):
+    viewing_profiles = State()
+    viewing_matches = State()

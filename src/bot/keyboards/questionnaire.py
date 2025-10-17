@@ -1,7 +1,7 @@
 # src/bot/keyboards/questionnaire.py
 from aiogram.types import KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
-from src.bot.models.gender import Gender
+from src.bot.enum.gender import Gender
 
 
 def get_gender_keyboard() -> ReplyKeyboardMarkup:
