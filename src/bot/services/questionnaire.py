@@ -1,17 +1,16 @@
 # src/bot/services/questionnaire.py
-import logging
+
 
 from aiogram.fsm.context import FSMContext
 
-from src.bot.models.gender import Gender
+from src.bot.dao.user import UsersDAO
+from src.bot.enum.gender import Gender
 from src.bot.models.responses import AgeResponse, GenderResponse
 from src.bot.states.form_states import FormStates
-from src.users.dao import UsersDAO
-
-logger = logging.getLogger(__name__)
+from src.logger import logger
 
 
-class QuestionnaireService:
+class QuestionnaireProcessService:
     def __init__(self, users_dao: UsersDAO):
         self.users_dao = users_dao
 
@@ -98,7 +97,7 @@ class QuestionnaireService:
             "Можешь пропустить этот шаг, нажав кнопку ниже."
         )
 
-    async def complete_questionnaire(self, photo_id: str, user_id: int, state: FSMContext) -> str:
+    async def complete_questionnaire(self, photo_id: str, user_id: int, state: FSMContext) -> tuple[str, str]:
         """Завершение опроса и сохранение данных"""
         logger.info(f"Завершение опроса для пользователя {user_id}")
 
