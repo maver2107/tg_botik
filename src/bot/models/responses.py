@@ -1,6 +1,5 @@
 # src/bot/models/responses.py
 from pydantic import BaseModel
-from typing import Optional
 
 
 class BaseResponse(BaseModel):
