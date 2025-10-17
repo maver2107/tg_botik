@@ -120,8 +120,6 @@ class QuestionnaireService:
         logger.info(f"Опрос завершен для пользователя {user_id}")
 
         caption = (
-            f"Так выглядит твоя анкета:\n\n"
-            f"{form_data.get('name')}, {form_data.get('age')}. {form_data.get('city')} – {form_data.get('interests')}\n\n"
-            f"Все верно?"
+            f"{form_data.get('name')}, {form_data.get('age')}, {form_data.get('city')} – {form_data.get('interests')}"
         )
         return caption, photo_id

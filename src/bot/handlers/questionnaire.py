@@ -88,7 +88,9 @@ async def process_photo(message: Message, state: FSMContext, questionnaire_servi
     )
 
     if photo:
+        await message.answer("Так выглядит твоя анкета:")
         await message.answer_photo(photo, caption=caption)
+        await message.answer("Все верно?")
 
 
 # Если пользователь отправил не фото
