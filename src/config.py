@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     DB_NAME: str
     BOT_TOKEN: str
 
+    LOG_LEVEL: str
+    LOG_FORMAT: str
+    LOG_ROTATION: str
+    LOG_RETENTION: str
+    LOG_FILE_PATH: str
+    LOG_COMPRESSION: str = "gz"
+
     model_config = SettingsConfigDict(env_file=".env")
 
     @property
