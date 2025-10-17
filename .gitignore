@@ -10,3 +10,4 @@ bot.log
 
 # Virtual environments
 .venv
+.env/
