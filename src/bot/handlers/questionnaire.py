@@ -8,7 +8,7 @@ from src.bot.keyboards.questionnaire import (
     get_gender_keyboard,
     remove_keyboard,
 )
-from src.bot.services.questionnaire import QuestionnaireService
+from src.bot.services.questionnaire import QuestionnaireProcessService
 from src.bot.states.form_states import FormStates
 
 questionnaire_router = Router()
@@ -18,9 +18,12 @@ questionnaire_router = Router()
 async def process_name(
     message: Message,
     state: FSMContext,
-    questionnaire_service: QuestionnaireService,
+    questionnaire_service: QuestionnaireProcessService,
 ):
     """Обработка имени"""
+    if message.text is None:
+        await message.answer("❌ Пожалуйста, введите имя")
+        return
     response = await questionnaire_service.process_name(name=message.text, state=state)
     await message.answer(response)
 
@@ -29,9 +32,12 @@ async def process_name(
 async def process_age(
     message: Message,
     state: FSMContext,
-    questionnaire_service: QuestionnaireService,
+    questionnaire_service: QuestionnaireProcessService,
 ):
     """Обработка возраста"""
+    if message.text is None:
+        await message.answer("❌ Пожалуйста, введите возраст")
+        return
     result = await questionnaire_service.process_age(age_text=message.text, state=state)
 
     if result.success:
@@ -41,8 +47,11 @@ async def process_age(
 
 
 @questionnaire_router.message(FormStates.waiting_for_gender)
-async def process_gender(message: Message, state: FSMContext, questionnaire_service: QuestionnaireService):
+async def process_gender(message: Message, state: FSMContext, questionnaire_service: QuestionnaireProcessService):
     """Обработка пола"""
+    if message.text is None:
+        await message.answer("❌ Пожалуйста, выберите пол")
+        return
     result = await questionnaire_service.process_gender(gender_text=message.text, state=state)
 
     if result.success:
@@ -52,8 +61,13 @@ async def process_gender(message: Message, state: FSMContext, questionnaire_serv
 
 
 @questionnaire_router.message(FormStates.waiting_for_gender_interest)
-async def process_gender_interest(message: Message, state: FSMContext, questionnaire_service: QuestionnaireService):
+async def process_gender_interest(
+    message: Message, state: FSMContext, questionnaire_service: QuestionnaireProcessService
+):
     """Обработка предпочтений по полу"""
+    if message.text is None:
+        await message.answer("❌ Пожалуйста, выберите предпочтения по полу")
+        return
     result = await questionnaire_service.process_gender_interest(gender_interest_text=message.text, state=state)
 
     if result.success:
@@ -63,28 +77,42 @@ async def process_gender_interest(message: Message, state: FSMContext, questionn
 
 
 @questionnaire_router.message(FormStates.waiting_for_city)
-async def process_city(message: Message, state: FSMContext, questionnaire_service: QuestionnaireService):
+async def process_city(message: Message, state: FSMContext, questionnaire_service: QuestionnaireProcessService):
     """Обработка города"""
+    if message.text is None:
+        await message.answer("❌ Пожалуйста, выберите город")
+        return
     response = await questionnaire_service.process_city(city=message.text, state=state)
     await message.answer(response)
 
 
 @questionnaire_router.message(FormStates.waiting_for_interests)
-async def process_interests(message: Message, state: FSMContext, questionnaire_service: QuestionnaireService):
+async def process_interests(message: Message, state: FSMContext, questionnaire_service: QuestionnaireProcessService):
     """Обработка интересов"""
+    if message.text is None:
+        await message.answer("❌ Пожалуйста, введите интереса")
+        return
     response = await questionnaire_service.process_interests(interests=message.text, state=state)
     await message.answer(response)
 
 
 # Обработчик фото
 @questionnaire_router.message(FormStates.waiting_for_photo, F.photo)
-async def process_photo(message: Message, state: FSMContext, questionnaire_service: QuestionnaireService):
+async def process_photo(message: Message, state: FSMContext, questionnaire_service: QuestionnaireProcessService):
     """Обработка фото профиля"""
     # Берём фото самого высокого качества (последнее в списке)
-    photo_id = message.photo[-1].file_id
+    if message.photo is None:
+        await message.answer("❌ Пожалуйста, отправь фото")
+        return
+    if message.from_user is None:
+        await message.answer("❌ Пожалуйста, авторизуйся")
+        return
 
+    photo_id = message.photo[-1].file_id
     caption, photo = await questionnaire_service.complete_questionnaire(
-        photo_id=photo_id, user_id=message.from_user.id, state=state
+        photo_id=photo_id,
+        user_id=message.from_user.id,
+        state=state,
     )
 
     if photo:
