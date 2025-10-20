@@ -1,4 +1,33 @@
 # src/bot/services/swipe.py
+"""
+TODO для джуна: Очистка Service от UI-логики
+
+ПРОБЛЕМЫ В ЭТОМ ФАЙЛЕ:
+1. Service импортирует клавиатуры (строка 10) - это UI, не бизнес-логика
+2. Service отправляет Telegram-сообщения (строки 136-151) - это должен делать Handler/Presenter
+3. format_profile() - это UI-функция, должна быть в Presenter
+4. Service создаёт БД-сессии напрямую (строки 33, 80) - должно быть в DAO
+
+ПЛАН РЕФАКТОРИНГА:
+1. Убрать импорт get_show_likes_keyboard - клавиатуры должен создавать Presenter
+2. Убрать bot.send_message из process_like - вместо этого вернуть данные:
+   return {
+       "is_match": bool,
+       "matched_user": Users | None,
+       "notification_needed": bool,  # нужно ли отправить уведомление
+       "next_profile": Users | None
+   }
+3. Переместить format_profile в SwipePresenter
+4. Вынести get_next_profile и get_profiles_who_liked_me в DAO
+5. Service должен только координировать DAO и возвращать структурированные данные
+
+ПРАВИЛЬНАЯ СТРУКТУРА Service:
+- Принимает данные от Handler
+- Вызывает методы DAO для работы с БД
+- Применяет бизнес-правила (проверка взаимных лайков, создание мэтчей)
+- Возвращает данные Handler'у для отображения
+"""
+
 import logging
 from typing import Optional
 
@@ -7,7 +36,7 @@ from sqlalchemy import and_, select
 from src.bot.dao.like import LikesDAO, MatchesDAO
 from src.bot.dao.user import UsersDAO
 from src.bot.enum.gender import Gender
-from src.bot.keyboards.swipe import get_show_likes_keyboard
+from src.bot.keyboards.swipe import get_show_likes_keyboard  # TODO: УДАЛИТЬ! UI не должен быть в service
 from src.bot.models.user import Users
 from src.core.database import async_session_maker
 
@@ -30,6 +59,11 @@ class SwipeService:
         - Фильтруем по gender_interest
         - Возвращаем случайную анкету
         """
+        # TODO: ПРОБЛЕМА - Service создаёт сессию БД напрямую
+        # Вся работа с БД должна быть в DAO. Этот метод нужно разбить:
+        # 1. users_dao.get_by_tg_id(user_id) - получить текущего пользователя
+        # 2. likes_dao.get_rated_user_ids(user_id) - получить оценённых
+        # 3. users_dao.get_next_profile(user_id, rated_ids, gender_interest) - получить анкету
         async with async_session_maker() as session:
             # Получаем данные текущего пользователя
             current_user_query = select(Users).where(Users.tg_id == user_id)
@@ -77,10 +111,12 @@ class SwipeService:
         Получить анкеты пользователей, которые лайкнули текущего пользователя,
         но он их ещё не оценил
         """
+        # TODO: ПРОБЛЕМА - Работа с БД в Service
+        # Перенести в DAO: likes_dao.get_profiles_who_liked_me(user_id)
         async with async_session_maker() as session:
             # Получаем ID пользователей, которые лайкнули текущего
             liked_me_query = select(self.likes_dao.model.from_user_id).where(
-                and_(self.likes_dao.model.to_user_id == user_id, self.likes_dao.model.is_like == True)
+                and_(self.likes_dao.model.to_user_id == user_id, self.likes_dao.model.is_like.is_(True))
             )
             liked_me_result = await session.execute(liked_me_query)
             liked_me_ids = [row[0] for row in liked_me_result.all()]
@@ -113,6 +149,40 @@ class SwipeService:
         - next_profile: Users - следующая анкета
         - matched_user: Users - пользователь с которым мэтч (если есть)
         """
+        # TODO: КРИТИЧЕСКАЯ ПРОБЛЕМА - Service отправляет сообщения!
+        # bot не должен быть параметром Service!
+        #
+        # ПРАВИЛЬНЫЙ ПОДХОД:
+        # 1. Service обрабатывает лайк и возвращает данные
+        # 2. Handler получает эти данные и решает что отправить
+        # 3. Presenter форматирует и отправляет сообщения
+        #
+        # Нужно:
+        # - Удалить параметр bot
+        # - Удалить bot.send_message (строки 136-151)
+        # - ИСПОЛЬЗОВАТЬ PYDANTIC МОДЕЛИ вместо dict!
+        #
+        # Создай модель в src/bot/models/responses.py:
+        # class LikeProcessResult(BaseModel):
+        #     is_match: bool
+        #     matched_user: Users | None
+        #     current_user: Users
+        #     next_profile: Users | None
+        #
+        # И возвращай:
+        # return LikeProcessResult(
+        #     is_match=is_match,
+        #     matched_user=matched_user,
+        #     current_user=current_user,
+        #     next_profile=next_profile
+        # )
+        #
+        # ПРЕИМУЩЕСТВА Pydantic:
+        # - Автодополнение в IDE (result.is_match вместо result["is_match"])
+        # - Валидация типов
+        # - Защита от опечаток в ключах
+        # - Документирование структуры данных
+
         logger.info(f"Лайк от {from_user_id} к {to_user_id}")
 
         # Добавляем лайк
@@ -131,6 +201,7 @@ class SwipeService:
             matched_user = await self.users_dao.get_by_tg_id(to_user_id)
             current_user = await self.users_dao.get_by_tg_id(from_user_id)
 
+            # TODO: УДАЛИТЬ ЭТО! Отправка сообщений не должна быть в Service
             # Отправляем уведомление второму пользователю о мэтче
             try:
                 await bot.send_message(
@@ -142,6 +213,7 @@ class SwipeService:
             except Exception as e:
                 logger.error(f"Не удалось отправить уведомление о мэтче пользователю {to_user_id}: {e}")
         else:
+            # TODO: УДАЛИТЬ ЭТО! Отправка сообщений не должна быть в Service
             # Если НЕ мэтч - отправляем уведомление "Ты кому-то понравился"
             try:
                 await bot.send_message(
@@ -159,6 +231,14 @@ class SwipeService:
         """
         Обработка дизлайка
         """
+        # TODO: ИСПОЛЬЗОВАТЬ PYDANTIC МОДЕЛИ вместо dict!
+        #
+        # Создай модель в src/bot/models/responses.py:
+        # class DislikeProcessResult(BaseModel):
+        #     next_profile: Users | None
+        #
+        # И возвращай: return DislikeProcessResult(next_profile=next_profile)
+
         logger.info(f"Дизлайк от {from_user_id} к {to_user_id}")
 
         # Добавляем дизлайк
@@ -175,6 +255,13 @@ class SwipeService:
 
         hide_name - скрыть имя (для показа тех, кто лайкнул)
         """
+        # TODO: УДАЛИТЬ ЭТОТ МЕТОД!
+        # Форматирование - это UI-логика, должна быть в Presenter
+        # Создай SwipePresenter и перенеси туда:
+        # class SwipePresenter:
+        #     @staticmethod
+        #     def format_profile(user: Users, hide_name: bool = False) -> str:
+        #         ...
 
         profile_text = f"{user.name}, {user.age}, {user.city} - {user.interests}"
 

@@ -1,4 +1,48 @@
 # src/bot/handlers/swipe.py
+"""
+TODO для джуна: Рефакторинг архитектуры
+
+ПРОБЛЕМЫ ТЕКУЩЕЙ АРХИТЕКТУРЫ:
+1. Handler делает слишком много - нарушение Single Responsibility Principle
+2. Дублирование кода отправки анкет (4 раза повторяется одна и та же логика)
+3. Service занимается UI (format_profile, отправка сообщений через bot.send_message)
+4. Handler напрямую обращается к DAO (matches_dao, users_dao) - нарушение слоёв
+5. Бизнес-логика размазана между handler и service
+
+ПЛАН РЕФАКТОРИНГА:
+1. Создать Presenter/View слой для UI-логики:
+   - Форматирование текста анкет (format_profile)
+   - Отправка сообщений (send_profile, send_match_notification)
+   - Создание клавиатур (можно оставить в keyboards, но использовать через presenter)
+
+2. Очистить Service от UI:
+   - Убрать format_profile() из SwipeService
+   - Убрать bot.send_message() из process_like/process_dislike
+   - Service должен только возвращать данные, а не отправлять сообщения
+   - Вынести работу с БД-сессиями из service в DAO
+
+3. Упростить Handler:
+   - Вынести дублирующийся код отправки анкет в отдельный метод/presenter
+   - Handler должен только: принять событие → вызвать service → отправить ответ через presenter
+   - Убрать прямые обращения к DAO (использовать только через service)
+
+4. Архитектура слоёв должна быть:
+   Handler (контроллер) → Service (бизнес-логика) → DAO (данные)
+                      ↘ Presenter (UI) ↗
+
+ПРИМЕР ПРАВИЛЬНОЙ АРХИТЕКТУРЫ:
+@swipe_router.message(Command("search"))
+async def start_search(message: Message, swipe_service: SwipeService, presenter: SwipePresenter):
+    user_id = message.from_user.id
+    next_profile = await swipe_service.get_next_profile(user_id)
+
+    if not next_profile:
+        await presenter.send_no_profiles_message(message)
+        return
+
+    await presenter.send_profile(message, next_profile, is_first=True)
+"""
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
@@ -26,8 +70,10 @@ async def start_search(message: Message, swipe_service: SwipeService, state: FSM
     # Устанавливаем состояние "обычный просмотр"
     await state.set_state(SwipeStates.normal_browsing)
 
-    # Отправляем анкету
-    profile_text = swipe_service.format_profile(next_profile)
+    # TODO: ПРОБЛЕМА #1 - Handler делает UI-работу
+    # Эта логика повторяется 4 раза в файле (строки 73-80, 171-178, 215-222)
+    # Решение: создать SwipePresenter с методом send_profile(message, profile, state)
+    profile_text = swipe_service.format_profile(next_profile)  # format_profile не должен быть в service!
 
     if next_profile.photo_id:
         await message.answer_photo(
@@ -86,10 +132,21 @@ async def process_like_callback(callback: CallbackQuery, swipe_service: SwipeSer
     # Получаем текущее состояние
     current_state = await state.get_state()
 
-    # Обрабатываем лайк
+    # TODO: ПРОБЛЕМА #2 - Service принимает bot и отправляет сообщения
+    # process_like не должен отправлять уведомления! Это работа Handler или Presenter
+    # Service должен только вернуть данные о мэтче, а Handler решает что с ними делать
     result = await swipe_service.process_like(from_user_id, to_user_id, bot)
 
-    # Если мэтч - показываем username
+    # TODO: ПРОБЛЕМА #3 - Форматирование UI в Handler + использование dict
+    # Эта логика должна быть в Presenter
+    #
+    # ❌ ПЛОХО: result["is_match"] - можно ошибиться в названии ключа
+    # ✅ ХОРОШО: result.is_match - автодополнение, проверка типов
+    #
+    # После рефакторинга будет:
+    # result = await swipe_service.process_like(from_user_id, to_user_id)  # БЕЗ bot!
+    # if result.is_match:  # Pydantic модель вместо dict
+    #     await presenter.send_match_notification(callback.message, result.matched_user)
     if result["is_match"]:
         matched_user = result["matched_user"]
         username_display = (
@@ -105,7 +162,9 @@ async def process_like_callback(callback: CallbackQuery, swipe_service: SwipeSer
             f"Можете начать общение! 💬"
         )
 
-    # Определяем следующую анкету в зависимости от состояния
+    # TODO: ПРОБЛЕМА #4 - Бизнес-логика в Handler
+    # Определение следующей анкеты должно быть в Service, а не здесь
+    # Эта логика полностью дублируется в process_dislike_callback (строки 195-204)
     if current_state == SwipeStates.viewing_likes:
         # Если смотрели лайкнувших - показываем следующего из них
         profiles = await swipe_service.get_profiles_who_liked_me(from_user_id)
@@ -183,17 +242,23 @@ async def process_dislike_callback(callback: CallbackQuery, swipe_service: Swipe
 async def show_matches(message: Message, swipe_service: SwipeService):
     """Показать список мэтчей с username"""
     user_id = message.from_user.id
+
+    # TODO: ПРОБЛЕМА #5 - Handler напрямую обращается к DAO!
+    # Это нарушение архитектуры слоёв. Handler не должен знать о существовании DAO
+    # Правильно: await swipe_service.get_user_matches(user_id)
     matches = await swipe_service.matches_dao.get_user_matches(user_id)
 
     if not matches:
         await message.answer("У тебя пока нет мэтчей 😔")
         return
 
+    # TODO: ПРОБЛЕМА #6 - Форматирование и бизнес-логика в Handler
+    # Получение other_user и форматирование должно быть в Service/Presenter
     matches_text = "💕 Твои мэтчи:\n\n"
     for match in matches:
         # Определяем ID второго пользователя
         other_user_id = match.user2_id if match.user1_id == user_id else match.user1_id
-        other_user = await swipe_service.users_dao.get_by_tg_id(other_user_id)
+        other_user = await swipe_service.users_dao.get_by_tg_id(other_user_id)  # Опять прямой доступ к DAO!
 
         if other_user:
             username_display = (
