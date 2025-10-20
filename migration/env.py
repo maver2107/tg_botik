@@ -6,6 +6,10 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from src.bot.models.like import (
+    Likes,  # noqa: F401
+    Matches,  # noqa: F401
+)
 from src.bot.models.user import Users  # noqa: F401
 from src.core.database import DATABASE_URL, Base
 
