@@ -18,11 +18,11 @@
 ## 📝 Чек-лист задач
 
 ### Шаг 0: Создать Pydantic модели ⬜
-- [ ] Добавить в `src/bot/models/responses.py` класс `LikeProcessResult`
-- [ ] Добавить в `src/bot/models/responses.py` класс `DislikeProcessResult`
-- [ ] Добавить в `src/bot/models/responses.py` класс `MatchWithDetails`
-- [ ] Добавить импорт `from datetime import datetime`
-- [ ] Настроить `model_config = {"arbitrary_types_allowed": True}` для моделей
+- [✔️] Добавить в `src/bot/models/responses.py` класс `LikeProcessResult` 
+- [✔️] Добавить в `src/bot/models/responses.py` класс `DislikeProcessResult` 
+- [✔️] Добавить в `src/bot/models/responses.py` класс `MatchWithDetails` 
+- [✔️] Добавить импорт `from datetime import datetime`
+- [✔️] Настроить `model_config = {"arbitrary_types_allowed": True}` для моделей
 
 **Зачем Pydantic модели?**
 - ✅ `result.is_match` вместо `result["is_match"]` - автодополнение в IDE
@@ -31,14 +31,14 @@
 - ✅ Документирование структуры данных
 
 ### Шаг 1: Создать Presenter ⬜
-- [ ] Создать файл `src/bot/presenters/__init__.py`
-- [ ] Создать файл `src/bot/presenters/swipe.py`
-- [ ] Реализовать класс `SwipePresenter`
-- [ ] Добавить метод `format_profile(user, hide_name=False)`
-- [ ] Добавить метод `send_profile(target, profile, hide_name=False)`
-- [ ] Добавить метод `format_match_message(matched_user)`
-- [ ] Добавить метод `format_like_notification()`
-- [ ] Добавить метод `send_no_profiles_message(target)`
+- [✔️] Создать файл `src/bot/presenters/__init__.py` 
+- [✔️] Создать файл `src/bot/presenters/swipe.py` 
+- [✔️] Реализовать класс `SwipePresenter`
+- [✔️] Добавить метод `format_profile(user, hide_name=False)` 
+- [✔️] Добавить метод `send_profile(target, profile, hide_name=False)`
+- [✔️] Добавить метод `format_match_message(matched_user)`
+- [✔️] Добавить метод `format_like_notification()`
+- [✔️] Добавить метод `send_no_profiles_message(target)`
 
 ### Шаг 2: Расширить DAO ⬜
 - [ ] В `src/bot/dao/user.py` добавить `get_next_profile(...)`

@@ -7,6 +7,7 @@ wheels/
 *.egg-info
 *.mypy_cache
 bot.log
+test.py
 
 # Virtual environments
 .venv
