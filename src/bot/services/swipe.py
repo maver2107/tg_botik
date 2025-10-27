@@ -35,8 +35,6 @@ from sqlalchemy import and_, select
 
 from src.bot.dao.like import LikesDAO, MatchesDAO
 from src.bot.dao.user import UsersDAO
-from src.bot.enum.gender import Gender
-from src.bot.keyboards.swipe import get_show_likes_keyboard  # TODO: УДАЛИТЬ! UI не должен быть в service
 from src.bot.models.user import Users
 from src.core.database import async_session_maker
 
@@ -49,62 +47,24 @@ class SwipeService:
         self.matches_dao = matches_dao
         self.users_dao = users_dao
 
-    async def get_next_profile(self, user_id: int) -> Optional[Users]:
-        """
-        Получить следующую анкету для просмотра
+    async def get_next_profile(cls, user_id: int) -> Optional[Users]:
+        # 1. Получаем текущего пользователя
+        current_user = await cls.users_dao.get_by_tg_id(user_id)
+        if not current_user:
+            logger.error(f"Пользователь {user_id} не найден")
+            return None
 
-        Логика:
-        - Исключаем самого пользователя
-        - Исключаем уже оценённых пользователей
-        - Фильтруем по gender_interest
-        - Возвращаем случайную анкету
-        """
-        # TODO: ПРОБЛЕМА - Service создаёт сессию БД напрямую
-        # Вся работа с БД должна быть в DAO. Этот метод нужно разбить:
-        # 1. users_dao.get_by_tg_id(user_id) - получить текущего пользователя
-        # 2. likes_dao.get_rated_user_ids(user_id) - получить оценённых
-        # 3. users_dao.get_next_profile(user_id, rated_ids, gender_interest) - получить анкету
-        async with async_session_maker() as session:
-            # Получаем данные текущего пользователя
-            current_user_query = select(Users).where(Users.tg_id == user_id)
-            current_user_result = await session.execute(current_user_query)
-            current_user = current_user_result.scalar_one_or_none()
+        # 2. Получаем ID всех уже оценённых пользователей
+        rated_user_ids = await cls.likes_dao.get_rated_user_ids(user_id)
 
-            if not current_user:
-                logger.error(f"Пользователь {user_id} не найден")
-                return None
+        # 3. Получаем следующую анкету
+        next_profile = await cls.users_dao.get_next_profile(
+            user_id=user_id,
+            rated_user_ids=rated_user_ids,
+            gender_interest=current_user.gender_interest,
+        )
 
-            # Получаем ID всех уже оценённых пользователей
-            rated_users_query = select(self.likes_dao.model.to_user_id).where(
-                self.likes_dao.model.from_user_id == user_id
-            )
-            rated_users_result = await session.execute(rated_users_query)
-            rated_user_ids = [row[0] for row in rated_users_result.all()]
-
-            # Формируем запрос для поиска подходящих анкет
-            query = select(Users).where(
-                and_(
-                    Users.tg_id != user_id,  # Не показываем себя
-                    Users.tg_id.not_in(rated_user_ids) if rated_user_ids else True,  # Исключаем оценённых
-                    Users.name.isnot(None),  # Только заполненные анкеты
-                    Users.age.isnot(None),
-                    Users.city.isnot(None),
-                )
-            )
-
-            # Фильтрация по gender_interest
-            if current_user.gender_interest == Gender.MALE:
-                query = query.where(Users.user_gender == Gender.MALE)
-            elif current_user.gender_interest == Gender.FEMALE:
-                query = query.where(Users.user_gender == Gender.FEMALE)
-            # Если SKIP_GENDER - показываем всех
-
-            # Получаем случайную анкету
-            query = query.order_by(Users.id)
-            result = await session.execute(query)
-            next_profile = result.scalars().first()
-
-            return next_profile
+        return next_profile
 
     async def get_profiles_who_liked_me(self, user_id: int) -> list[Users]:
         """

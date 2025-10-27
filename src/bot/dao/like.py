@@ -1,4 +1,5 @@
 # src/likes/dao.py
+from typing import List
 from sqlalchemy import and_, or_, select
 
 from src.bot.dao.base import BaseDAO
@@ -49,6 +50,13 @@ class LikesDAO(BaseDAO):
         """Проверка, оценивал ли пользователь уже эту анкету"""
         like = await cls.find_one_or_none(from_user_id=from_user_id, to_user_id=to_user_id)
         return like is not None
+
+    @classmethod
+    async def get_rated_user_ids(cls, from_user_id: int) -> List[int]:
+        async with async_session_maker() as session:
+            query = select(cls.model.to_user_id).where(cls.model.from_user_id == from_user_id)
+            result = await session.execute(query)
+            return [row[0] for row in result.all()]
 
 
 class MatchesDAO(BaseDAO):
