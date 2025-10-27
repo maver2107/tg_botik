@@ -76,3 +76,10 @@ class UsersDAO(BaseDAO):
             query = query.order_by(cls.model.id)
             result = await session.execute(query)
             return result.scalars().first()
+
+    @classmethod
+    async def get_profiles_by_ids(cls, not_rated_yet):
+        async with async_session_maker() as session:
+            users_query = select(Users).where(Users.tg_id.in_(not_rated_yet))
+            users_result = await session.execute(users_query)
+            return users_result.scalars().all()

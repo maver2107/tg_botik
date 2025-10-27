@@ -41,11 +41,11 @@
 - [✔️] Добавить метод `send_no_profiles_message(target)`
 
 ### Шаг 2: Расширить DAO ⬜
-- [ ] В `src/bot/dao/user.py` добавить `get_next_profile(...)`
-- [ ] В `src/bot/dao/user.py` добавить `get_profiles_by_ids(...)`
-- [ ] В `src/bot/dao/like.py` добавить `get_rated_user_ids(...)`
-- [ ] В `src/bot/dao/like.py` добавить `get_users_who_liked_me(...)`
-- [ ] В `src/bot/dao/like.py` добавить `get_unrated_from_list(...)`
+- [✔️] В `src/bot/dao/user.py` добавить `get_next_profile(...)`
+- [] В `src/bot/dao/user.py` добавить `get_profiles_by_ids(...)`
+- [] В `src/bot/dao/like.py` добавить `get_rated_user_ids(...)`
+- [] В `src/bot/dao/like.py` добавить `get_users_who_liked_me(...)`
+- [] В `src/bot/dao/like.py` добавить `get_unrated_from_list(...)`
 
 ### Шаг 3: Очистить Service ⬜
 - [ ] Добавить импорт Pydantic моделей: `from src.bot.models.responses import LikeProcessResult, DislikeProcessResult, MatchWithDetails`

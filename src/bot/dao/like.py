@@ -1,5 +1,6 @@
 # src/likes/dao.py
 from typing import List
+
 from sqlalchemy import and_, or_, select
 
 from src.bot.dao.base import BaseDAO
@@ -57,6 +58,26 @@ class LikesDAO(BaseDAO):
             query = select(cls.model.to_user_id).where(cls.model.from_user_id == from_user_id)
             result = await session.execute(query)
             return [row[0] for row in result.all()]
+
+    @classmethod
+    async def get_users_who_liked_me(cls, user_id):
+        async with async_session_maker() as session:
+            # Получаем ID пользователей, которые лайкнули текущего
+            liked_me_query = select(cls.model.from_user_id).where(
+                and_(cls.model.to_user_id == user_id, cls.model.is_like.is_(True))
+            )
+            liked_me_result = await session.execute(liked_me_query)
+            liked_me_ids = [row[0] for row in liked_me_result.all()]
+            return liked_me_ids
+
+    @classmethod
+    async def get_unrated_from_list(cls, user_id, liked_me_ids):
+        async with async_session_maker() as session:
+            rated_query = select(cls.model.to_user_id).where(cls.model.from_user_id == user_id)
+            rated_result = await session.execute(rated_query)
+            rated_ids = [row[0] for row in rated_result.all()]
+            not_rated_yet = [uid for uid in liked_me_ids if uid not in rated_ids]
+            return not_rated_yet
 
 
 class MatchesDAO(BaseDAO):

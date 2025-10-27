@@ -31,12 +31,9 @@ TODO для джуна: Очистка Service от UI-логики
 import logging
 from typing import Optional
 
-from sqlalchemy import and_, select
-
 from src.bot.dao.like import LikesDAO, MatchesDAO
 from src.bot.dao.user import UsersDAO
 from src.bot.models.user import Users
-from src.core.database import async_session_maker
 
 logger = logging.getLogger(__name__)
 
@@ -67,38 +64,19 @@ class SwipeService:
         return next_profile
 
     async def get_profiles_who_liked_me(self, user_id: int) -> list[Users]:
-        """
-        Получить анкеты пользователей, которые лайкнули текущего пользователя,
-        но он их ещё не оценил
-        """
-        # TODO: ПРОБЛЕМА - Работа с БД в Service
-        # Перенести в DAO: likes_dao.get_profiles_who_liked_me(user_id)
-        async with async_session_maker() as session:
-            # Получаем ID пользователей, которые лайкнули текущего
-            liked_me_query = select(self.likes_dao.model.from_user_id).where(
-                and_(self.likes_dao.model.to_user_id == user_id, self.likes_dao.model.is_like.is_(True))
-            )
-            liked_me_result = await session.execute(liked_me_query)
-            liked_me_ids = [row[0] for row in liked_me_result.all()]
+        """Получить анкеты тех, кто лайкнул меня"""
+        # 1. Кто лайкнул
+        liked_me_ids = await self.likes_dao.get_users_who_liked_me(user_id)
+        if not liked_me_ids:
+            return []
 
-            if not liked_me_ids:
-                return []
+        # 2. Кого я ещё не оценил
+        not_rated = await self.likes_dao.get_unrated_from_list(user_id, liked_me_ids)
+        if not not_rated:
+            return []
 
-            # Получаем ID пользователей, которых текущий уже оценил
-            rated_query = select(self.likes_dao.model.to_user_id).where(self.likes_dao.model.from_user_id == user_id)
-            rated_result = await session.execute(rated_query)
-            rated_ids = [row[0] for row in rated_result.all()]
-
-            # Находим тех, кто лайкнул, но кого ещё не оценили
-            not_rated_yet = [uid for uid in liked_me_ids if uid not in rated_ids]
-
-            if not not_rated_yet:
-                return []
-
-            # Получаем анкеты этих пользователей
-            users_query = select(Users).where(Users.tg_id.in_(not_rated_yet))
-            users_result = await session.execute(users_query)
-            return users_result.scalars().all()
+        # 3. Получить профили
+        return await self.users_dao.get_profiles_by_ids(not_rated)
 
     async def process_like(self, from_user_id: int, to_user_id: int, bot) -> dict:
         """
