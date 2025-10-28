@@ -33,6 +33,7 @@ from typing import Optional
 
 from src.bot.dao.like import LikesDAO, MatchesDAO
 from src.bot.dao.user import UsersDAO
+from src.bot.models.responses import DislikeProcessResult, LikeProcessResult, MatchWithDetails
 from src.bot.models.user import Users
 
 logger = logging.getLogger(__name__)
@@ -78,7 +79,7 @@ class SwipeService:
         # 3. Получить профили
         return await self.users_dao.get_profiles_by_ids(not_rated)
 
-    async def process_like(self, from_user_id: int, to_user_id: int, bot) -> dict:
+    async def process_like(self, from_user_id: int, to_user_id: int) -> LikeProcessResult:
         """
         Обработка лайка
 
@@ -87,7 +88,6 @@ class SwipeService:
         - next_profile: Users - следующая анкета
         - matched_user: Users - пользователь с которым мэтч (если есть)
         """
-        # TODO: КРИТИЧЕСКАЯ ПРОБЛЕМА - Service отправляет сообщения!
         # bot не должен быть параметром Service!
         #
         # ПРАВИЛЬНЫЙ ПОДХОД:
@@ -130,52 +130,25 @@ class SwipeService:
         is_match = await self.likes_dao.check_mutual_like(from_user_id, to_user_id)
 
         matched_user = None
+        current_user = await self.users_dao.get_by_tg_id(from_user_id)
         if is_match:
             # Создаём мэтч
             await self.matches_dao.create_match(from_user_id, to_user_id)
             logger.info(f"🔥 MATCH! {from_user_id} и {to_user_id}")
 
-            # Получаем данные обоих пользователей для обмена username
             matched_user = await self.users_dao.get_by_tg_id(to_user_id)
-            current_user = await self.users_dao.get_by_tg_id(from_user_id)
-
-            # TODO: УДАЛИТЬ ЭТО! Отправка сообщений не должна быть в Service
-            # Отправляем уведомление второму пользователю о мэтче
-            try:
-                await bot.send_message(
-                    to_user_id,
-                    f"🔥 Взаимная симпатия!\n\n"
-                    f"Вы понравились друг другу с @{current_user.username if hasattr(current_user, 'username') else 'пользователем'}!\n"
-                    f"Можете начать общение! 💬",
-                )
-            except Exception as e:
-                logger.error(f"Не удалось отправить уведомление о мэтче пользователю {to_user_id}: {e}")
-        else:
-            # TODO: УДАЛИТЬ ЭТО! Отправка сообщений не должна быть в Service
-            # Если НЕ мэтч - отправляем уведомление "Ты кому-то понравился"
-            try:
-                await bot.send_message(
-                    to_user_id, "❤️ Ты кому-то понравился!\n\nПоказать кто это?", reply_markup=get_show_likes_keyboard()
-                )
-            except Exception as e:
-                logger.error(f"Не удалось отправить уведомление пользователю {to_user_id}: {e}")
 
         # Получаем следующую анкету
         next_profile = await self.get_next_profile(from_user_id)
 
-        return {"is_match": is_match, "next_profile": next_profile, "matched_user": matched_user}
+        return LikeProcessResult(
+            is_match=is_match, matched_user=matched_user, current_user=current_user, next_profile=next_profile
+        )
 
-    async def process_dislike(self, from_user_id: int, to_user_id: int) -> dict:
+    async def process_dislike(self, from_user_id: int, to_user_id: int) -> DislikeProcessResult:
         """
         Обработка дизлайка
         """
-        # TODO: ИСПОЛЬЗОВАТЬ PYDANTIC МОДЕЛИ вместо dict!
-        #
-        # Создай модель в src/bot/models/responses.py:
-        # class DislikeProcessResult(BaseModel):
-        #     next_profile: Users | None
-        #
-        # И возвращай: return DislikeProcessResult(next_profile=next_profile)
 
         logger.info(f"Дизлайк от {from_user_id} к {to_user_id}")
 
@@ -185,22 +158,17 @@ class SwipeService:
         # Получаем следующую анкету
         next_profile = await self.get_next_profile(from_user_id)
 
-        return {"next_profile": next_profile}
+        return DislikeProcessResult(next_profile=next_profile)
 
-    def format_profile(self, user: Users) -> str:
-        """
-        Форматирование анкеты для отображения
+    async def get_user_matches_with_details(self, user_id: int) -> list[MatchWithDetails]:
+        """Получить мэтчи с данными пользователей"""
+        matches = await self.matches_dao.get_user_matches(user_id)
+        result = []
 
-        hide_name - скрыть имя (для показа тех, кто лайкнул)
-        """
-        # TODO: УДАЛИТЬ ЭТОТ МЕТОД!
-        # Форматирование - это UI-логика, должна быть в Presenter
-        # Создай SwipePresenter и перенеси туда:
-        # class SwipePresenter:
-        #     @staticmethod
-        #     def format_profile(user: Users, hide_name: bool = False) -> str:
-        #         ...
+        for match in matches:
+            other_id = match.user2_id if match.user1_id == user_id else match.user1_id
+            other_user = await self.users_dao.get_by_tg_id(other_id)
+            if other_user:
+                result.append(MatchWithDetails(user=other_user, match_date=match.created_at))
 
-        profile_text = f"{user.name}, {user.age}, {user.city} - {user.interests}"
-
-        return profile_text
+        return result

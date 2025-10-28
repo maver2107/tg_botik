@@ -42,49 +42,49 @@
 
 ### Шаг 2: Расширить DAO ⬜
 - [✔️] В `src/bot/dao/user.py` добавить `get_next_profile(...)`
-- [] В `src/bot/dao/user.py` добавить `get_profiles_by_ids(...)`
-- [] В `src/bot/dao/like.py` добавить `get_rated_user_ids(...)`
-- [] В `src/bot/dao/like.py` добавить `get_users_who_liked_me(...)`
-- [] В `src/bot/dao/like.py` добавить `get_unrated_from_list(...)`
+- [✔️] В `src/bot/dao/user.py` добавить `get_profiles_by_ids(...)`
+- [✔️] В `src/bot/dao/like.py` добавить `get_rated_user_ids(...)`
+- [✔️] В `src/bot/dao/like.py` добавить `get_users_who_liked_me(...)`
+- [✔️] В `src/bot/dao/like.py` добавить `get_unrated_from_list(...)`
 
 ### Шаг 3: Очистить Service ⬜
-- [ ] Добавить импорт Pydantic моделей: `from src.bot.models.responses import LikeProcessResult, DislikeProcessResult, MatchWithDetails`
-- [ ] Удалить импорт `get_show_likes_keyboard` (строка 38)
-- [ ] Переписать `get_next_profile()` — убрать работу с БД, использовать DAO
-- [ ] Переписать `get_profiles_who_liked_me()` — убрать работу с БД
-- [ ] Переписать `process_like()`:
-  - [ ] Изменить тип возврата: `-> LikeProcessResult` вместо `-> dict`
-  - [ ] Удалить параметр `bot`
-  - [ ] Удалить `bot.send_message()` (строки 192-208)
-  - [ ] Добавить `current_user = await self.users_dao.get_by_tg_id(from_user_id)`
-  - [ ] Вернуть `LikeProcessResult(...)` вместо dict
-- [ ] Переписать `process_dislike()`:
-  - [ ] Изменить тип возврата: `-> DislikeProcessResult`
-  - [ ] Вернуть `DislikeProcessResult(next_profile=next_profile)` вместо dict
-- [ ] Удалить метод `format_profile()` (строки 252-260)
-- [ ] Добавить новый метод `get_user_matches_with_details(user_id) -> list[MatchWithDetails]`
+- [✔️] Добавить импорт Pydantic моделей: `from src.bot.models.responses import LikeProcessResult, DislikeProcessResult, MatchWithDetails`
+- [✔️] Удалить импорт `get_show_likes_keyboard` (строка 38)
+- [✔️] Переписать `get_next_profile()` — убрать работу с БД, использовать DAO
+- [✔️] Переписать `get_profiles_who_liked_me()` — убрать работу с БД
+- [✔️] Переписать `process_like()`:
+- [✔️] Изменить тип возврата: `-> LikeProcessResult` вместо `-> dict`
+- [✔️] Удалить параметр `bot`
+- [✔️] Удалить `bot.send_message()` (строки 192-208)
+- [✔️] Добавить `current_user = await self.users_dao.get_by_tg_id(from_user_id)`
+- [✔️] Вернуть `LikeProcessResult(...)` вместо dict
+- [✔️] Переписать `process_dislike()`:
+- [✔️] Изменить тип возврата: `-> DislikeProcessResult`
+- [✔️] Вернуть `DislikeProcessResult(next_profile=next_profile)` вместо dict
+- [✔️] Удалить метод `format_profile()` (строки 252-260)
+- [✔️] Добавить новый метод `get_user_matches_with_details(user_id) -> list[MatchWithDetails]`
 
 ### Шаг 4: Упростить Handler ⬜
 - [ ] Добавить импорт `from src.bot.presenters.swipe import SwipePresenter`
 - [ ] В `start_search()`:
-  - [ ] Заменить ручную отправку на `presenter.send_profile()`
-  - [ ] Убрать дублирование (строки 75-82)
+- [ ] Заменить ручную отправку на `presenter.send_profile()`
+- [ ] Убрать дублирование (строки 75-82)
 - [ ] В `show_who_liked_me()`:
-  - [ ] Заменить на `presenter.send_profile()`
+- [ ] Заменить на `presenter.send_profile()`
 - [ ] В `process_like_callback()`:
-  - [ ] Убрать параметр `bot` из `process_like()`
-  - [ ] Использовать Pydantic модель: `result.is_match` вместо `result["is_match"]`
-  - [ ] Использовать `result.matched_user`, `result.current_user`, `result.next_profile`
-  - [ ] Переместить форматирование в Presenter
-  - [ ] Заменить отправку анкет на `presenter.send_profile()`
+- [ ] Убрать параметр `bot` из `process_like()`
+- [ ] Использовать Pydantic модель: `result.is_match` вместо `result["is_match"]`
+- [ ] Использовать `result.matched_user`, `result.current_user`, `result.next_profile`
+- [ ] Переместить форматирование в Presenter
+- [ ] Заменить отправку анкет на `presenter.send_profile()`
 - [ ] В `process_dislike_callback()`:
-  - [ ] Использовать Pydantic модель: `result.next_profile` вместо `result["next_profile"]`
-  - [ ] Заменить отправку на `presenter.send_profile()`
+- [ ] Использовать Pydantic модель: `result.next_profile` вместо `result["next_profile"]`
+- [ ] Заменить отправку на `presenter.send_profile()`
 - [ ] В `show_matches()`:
-  - [ ] Убрать прямой доступ к DAO (строки 240, 252)
-  - [ ] Использовать `swipe_service.get_user_matches_with_details()`
-  - [ ] Использовать Pydantic модели: `match_data.user` вместо `match_data["user"]`
-  - [ ] Переместить форматирование в Presenter
+- [ ] Убрать прямой доступ к DAO (строки 240, 252)
+- [ ] Использовать `swipe_service.get_user_matches_with_details()`
+- [ ] Использовать Pydantic модели: `match_data.user` вместо `match_data["user"]`
+- [ ] Переместить форматирование в Presenter
 
 ### Шаг 5: Проверка ⬜
 - [ ] Запустить линтер: `ruff check src/`
