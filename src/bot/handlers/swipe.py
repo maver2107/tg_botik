@@ -49,6 +49,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
 from src.bot.keyboards.swipe import get_swipe_keyboard
+from src.bot.presenters.swipe import SwipePresenter
 from src.bot.services.swipe import SwipeService
 from src.bot.states.swipe_states import SwipeStates
 
@@ -56,7 +57,9 @@ swipe_router = Router()
 
 
 @swipe_router.message(Command("search"))
-async def start_search(message: Message, swipe_service: SwipeService, state: FSMContext):
+async def start_search(
+    message: Message, swipe_service: SwipeService, state: FSMContext, swipe_presenter: SwipePresenter
+):
     """Команда для начала просмотра анкет"""
     user_id = message.from_user.id
 
@@ -64,23 +67,12 @@ async def start_search(message: Message, swipe_service: SwipeService, state: FSM
     next_profile = await swipe_service.get_next_profile(user_id)
 
     if not next_profile:
-        await message.answer("😔 К сожалению, подходящих анкет пока нет. Попробуй позже!")
+        await swipe_presenter.send_no_profiles_message(message)
         return
 
     # Устанавливаем состояние "обычный просмотр"
     await state.set_state(SwipeStates.normal_browsing)
-
-    # TODO: ПРОБЛЕМА #1 - Handler делает UI-работу
-    # Эта логика повторяется 4 раза в файле (строки 73-80, 171-178, 215-222)
-    # Решение: создать SwipePresenter с методом send_profile(message, profile, state)
-    profile_text = swipe_service.format_profile(next_profile)  # format_profile не должен быть в service!
-
-    if next_profile.photo_id:
-        await message.answer_photo(
-            photo=next_profile.photo_id, caption=profile_text, reply_markup=get_swipe_keyboard(next_profile.tg_id)
-        )
-    else:
-        await message.answer(profile_text, reply_markup=get_swipe_keyboard(next_profile.tg_id))
+    await swipe_presenter.send_profile(message, next_profile)  # format_profile не должен быть в service!
 
 
 @swipe_router.callback_query(F.data == "show_likes_yes")
@@ -122,7 +114,9 @@ async def decline_show_likes(callback: CallbackQuery):
 
 
 @swipe_router.callback_query(F.data.startswith("like_"))
-async def process_like_callback(callback: CallbackQuery, swipe_service: SwipeService, state: FSMContext, bot: Bot):
+async def process_like_callback(
+    callback: CallbackQuery, swipe_service: SwipeService, state: FSMContext, swipe_presenter: SwipePresenter, bot: Bot
+):
     """Обработка нажатия на кнопку лайк"""
     to_user_id = int(callback.data.split("_")[1])
     from_user_id = callback.from_user.id
@@ -135,7 +129,7 @@ async def process_like_callback(callback: CallbackQuery, swipe_service: SwipeSer
     # TODO: ПРОБЛЕМА #2 - Service принимает bot и отправляет сообщения
     # process_like не должен отправлять уведомления! Это работа Handler или Presenter
     # Service должен только вернуть данные о мэтче, а Handler решает что с ними делать
-    result = await swipe_service.process_like(from_user_id, to_user_id, bot)
+    result = await swipe_service.process_like(from_user_id, to_user_id)
 
     # TODO: ПРОБЛЕМА #3 - Форматирование UI в Handler + использование dict
     # Эта логика должна быть в Presenter
@@ -147,50 +141,37 @@ async def process_like_callback(callback: CallbackQuery, swipe_service: SwipeSer
     # result = await swipe_service.process_like(from_user_id, to_user_id)  # БЕЗ bot!
     # if result.is_match:  # Pydantic модель вместо dict
     #     await presenter.send_match_notification(callback.message, result.matched_user)
-    if result["is_match"]:
-        matched_user = result["matched_user"]
-        username_display = (
-            f"@{matched_user.username}"
-            if hasattr(matched_user, "username") and matched_user.username
-            else "без username"
+    if result.is_match:
+        match_text = swipe_presenter.format_match_message(result.matched_user)
+        await callback.message.answer(match_text)
+
+        # Уведомляем второго пользователя
+        await bot.send_message(to_user_id, swipe_presenter.format_match_message(result.current_user))
+    else:
+        # Уведомление о лайке
+        from src.bot.keyboards.swipe import get_show_likes_keyboard
+
+        await bot.send_message(
+            to_user_id, swipe_presenter.format_like_notification(), reply_markup=get_show_likes_keyboard()
         )
 
-        await callback.message.answer(
-            f"🔥 Взаимная симпатия!\n\n"
-            f"Вы понравились друг другу!\n"
-            f"Контакт: {username_display}\n\n"
-            f"Можете начать общение! 💬"
-        )
-
-    # TODO: ПРОБЛЕМА #4 - Бизнес-логика в Handler
-    # Определение следующей анкеты должно быть в Service, а не здесь
-    # Эта логика полностью дублируется в process_dislike_callback (строки 195-204)
+    # Определяем следующую анкету
     if current_state == SwipeStates.viewing_likes:
-        # Если смотрели лайкнувших - показываем следующего из них
         profiles = await swipe_service.get_profiles_who_liked_me(from_user_id)
-        next_profile = profiles[0] if profiles else await swipe_service.get_next_profile(from_user_id)
+        next_profile = profiles[0] if profiles else result.next_profile  # ✅ .next_profile
         hide_name = bool(profiles)
     else:
-        # Обычный просмотр
-        next_profile = result["next_profile"]
+        next_profile = result.next_profile  # ✅ .next_profile
         hide_name = False
 
     if not next_profile:
-        await callback.message.answer("😔 Анкеты закончились! Попробуй позже.")
+        await callback.message.answer("😔 Анкеты закончились!")
         await state.clear()
         await callback.answer()
         return
 
     # Отправляем следующую анкету
-    profile_text = swipe_service.format_profile(next_profile, hide_name=hide_name)
-
-    if next_profile.photo_id:
-        await callback.message.answer_photo(
-            photo=next_profile.photo_id, caption=profile_text, reply_markup=get_swipe_keyboard(next_profile.tg_id)
-        )
-    else:
-        await callback.message.answer(profile_text, reply_markup=get_swipe_keyboard(next_profile.tg_id))
-
+    await swipe_presenter.send_profile(callback, next_profile)
     await callback.answer("❤️ Лайк отправлен!")
 
 
@@ -239,31 +220,20 @@ async def process_dislike_callback(callback: CallbackQuery, swipe_service: Swipe
 
 
 @swipe_router.message(Command("matches"))
-async def show_matches(message: Message, swipe_service: SwipeService):
-    """Показать список мэтчей с username"""
+async def show_matches(message: Message, swipe_service: SwipeService, swipe_presenter: SwipePresenter):
+    """Показать мэтчи"""
     user_id = message.from_user.id
-
-    # TODO: ПРОБЛЕМА #5 - Handler напрямую обращается к DAO!
-    # Это нарушение архитектуры слоёв. Handler не должен знать о существовании DAO
-    # Правильно: await swipe_service.get_user_matches(user_id)
-    matches = await swipe_service.matches_dao.get_user_matches(user_id)
+    matches = await swipe_service.get_user_matches_with_details(user_id)
 
     if not matches:
         await message.answer("У тебя пока нет мэтчей 😔")
         return
 
-    # TODO: ПРОБЛЕМА #6 - Форматирование и бизнес-логика в Handler
-    # Получение other_user и форматирование должно быть в Service/Presenter
+    # ✅ Форматирование в Presenter + используем Pydantic модели
     matches_text = "💕 Твои мэтчи:\n\n"
-    for match in matches:
-        # Определяем ID второго пользователя
-        other_user_id = match.user2_id if match.user1_id == user_id else match.user1_id
-        other_user = await swipe_service.users_dao.get_by_tg_id(other_user_id)  # Опять прямой доступ к DAO!
-
-        if other_user:
-            username_display = (
-                f"@{other_user.username}" if hasattr(other_user, "username") and other_user.username else "без username"
-            )
-            matches_text += f"• {other_user.name} - {username_display}\n"
+    for match_data in matches:  # match_data это MatchWithDetails
+        user = match_data.user  # ✅ .user вместо ["user"]
+        username = f"@{user.username}" if user.username else "без username"
+        matches_text += f"• {user.name} - {username}\n"
 
     await message.answer(matches_text)
