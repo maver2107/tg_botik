@@ -31,8 +31,8 @@ class SwipePresenter:
         return "❤️ Ты кому-то понравился!\n\nПоказать кто это?"
 
     @staticmethod
-    async def send_no_profiles_message(target: Message):
+    async def send_no_profiles_message(message: Message):
         """Сообщение когда анкеты закончились"""
         text = "😔 К сожалению, подходящих анкет пока нет. Попробуй позже!"
 
-        await target.answer(text)
+        await message.answer(text)

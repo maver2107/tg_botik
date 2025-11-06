@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
-from bot.models.user import Users
+from src.bot.models.user import Users
 
 
 class BaseResponse(BaseModel):

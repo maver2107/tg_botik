@@ -58,7 +58,7 @@ swipe_router = Router()
 
 @swipe_router.message(Command("search"))
 async def start_search(
-    message: Message, swipe_service: SwipeService, state: FSMContext, swipe_presenter: SwipePresenter
+    message: Message, swipe_service: SwipeService, swipe_presenter: SwipePresenter, state: FSMContext
 ):
     """Команда для начала просмотра анкет"""
     user_id = message.from_user.id
@@ -159,10 +159,9 @@ async def process_like_callback(
     if current_state == SwipeStates.viewing_likes:
         profiles = await swipe_service.get_profiles_who_liked_me(from_user_id)
         next_profile = profiles[0] if profiles else result.next_profile  # ✅ .next_profile
-        hide_name = bool(profiles)
+
     else:
         next_profile = result.next_profile  # ✅ .next_profile
-        hide_name = False
 
     if not next_profile:
         await callback.message.answer("😔 Анкеты закончились!")

@@ -1,10 +1,10 @@
 import logging
 from typing import List, Optional
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 
-from bot.enum.gender import Gender
 from src.bot.dao.base import BaseDAO
+from src.bot.enum.gender import Gender
 from src.bot.models.user import Users
 from src.core.database import async_session_maker
 
@@ -44,7 +44,7 @@ class UsersDAO(BaseDAO):
             return user
 
     @classmethod
-    async def get_by_tg_id(cls, tg_id: int) -> Optional[Users]:
+    async def get_by_tg_id(cls, tg_id: int) -> Users:
         async with async_session_maker() as session:
             query = select(cls.model).where(cls.model.tg_id == tg_id)
             result = await session.execute(query)

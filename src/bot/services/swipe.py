@@ -29,7 +29,6 @@ TODO для джуна: Очистка Service от UI-логики
 """
 
 import logging
-from typing import Optional
 
 from src.bot.dao.like import LikesDAO, MatchesDAO
 from src.bot.dao.user import UsersDAO
@@ -45,18 +44,18 @@ class SwipeService:
         self.matches_dao = matches_dao
         self.users_dao = users_dao
 
-    async def get_next_profile(cls, user_id: int) -> Optional[Users]:
+    async def get_next_profile(self, user_id: int) -> Users:
         # 1. Получаем текущего пользователя
-        current_user = await cls.users_dao.get_by_tg_id(user_id)
+        current_user = await self.users_dao.get_by_tg_id(user_id)
         if not current_user:
             logger.error(f"Пользователь {user_id} не найден")
             return None
 
         # 2. Получаем ID всех уже оценённых пользователей
-        rated_user_ids = await cls.likes_dao.get_rated_user_ids(user_id)
+        rated_user_ids = await self.likes_dao.get_rated_user_ids(user_id)
 
         # 3. Получаем следующую анкету
-        next_profile = await cls.users_dao.get_next_profile(
+        next_profile = await self.users_dao.get_next_profile(
             user_id=user_id,
             rated_user_ids=rated_user_ids,
             gender_interest=current_user.gender_interest,
