@@ -1,54 +1,10 @@
-# src/bot/handlers/swipe.py
-"""
-TODO для джуна: Рефакторинг архитектуры
-
-ПРОБЛЕМЫ ТЕКУЩЕЙ АРХИТЕКТУРЫ:
-1. Handler делает слишком много - нарушение Single Responsibility Principle
-2. Дублирование кода отправки анкет (4 раза повторяется одна и та же логика)
-3. Service занимается UI (format_profile, отправка сообщений через bot.send_message)
-4. Handler напрямую обращается к DAO (matches_dao, users_dao) - нарушение слоёв
-5. Бизнес-логика размазана между handler и service
-
-ПЛАН РЕФАКТОРИНГА:
-1. Создать Presenter/View слой для UI-логики:
-   - Форматирование текста анкет (format_profile)
-   - Отправка сообщений (send_profile, send_match_notification)
-   - Создание клавиатур (можно оставить в keyboards, но использовать через presenter)
-
-2. Очистить Service от UI:
-   - Убрать format_profile() из SwipeService
-   - Убрать bot.send_message() из process_like/process_dislike
-   - Service должен только возвращать данные, а не отправлять сообщения
-   - Вынести работу с БД-сессиями из service в DAO
-
-3. Упростить Handler:
-   - Вынести дублирующийся код отправки анкет в отдельный метод/presenter
-   - Handler должен только: принять событие → вызвать service → отправить ответ через presenter
-   - Убрать прямые обращения к DAO (использовать только через service)
-
-4. Архитектура слоёв должна быть:
-   Handler (контроллер) → Service (бизнес-логика) → DAO (данные)
-                      ↘ Presenter (UI) ↗
-
-ПРИМЕР ПРАВИЛЬНОЙ АРХИТЕКТУРЫ:
-@swipe_router.message(Command("search"))
-async def start_search(message: Message, swipe_service: SwipeService, presenter: SwipePresenter):
-    user_id = message.from_user.id
-    next_profile = await swipe_service.get_next_profile(user_id)
-
-    if not next_profile:
-        await presenter.send_no_profiles_message(message)
-        return
-
-    await presenter.send_profile(message, next_profile, is_first=True)
-"""
-
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import Message
 
-from src.bot.keyboards.swipe import get_swipe_keyboard
+from src.bot.enum.like import ApplicationStatus, LikeStatus
+from src.bot.keyboards.swipe import get_show_likes_keyboard
 from src.bot.presenters.swipe import SwipePresenter
 from src.bot.services.swipe import SwipeService
 from src.bot.states.swipe_states import SwipeStates
@@ -70,87 +26,77 @@ async def start_search(
         await swipe_presenter.send_no_profiles_message(message)
         return
 
+    # Сохраняем ID текущего профиля в состоянии
+    await state.update_data(current_profile_id=next_profile.tg_id)
+
     # Устанавливаем состояние "обычный просмотр"
     await state.set_state(SwipeStates.normal_browsing)
-    await swipe_presenter.send_profile(message, next_profile)  # format_profile не должен быть в service!
+    await swipe_presenter.send_profile(message, next_profile)
 
 
-@swipe_router.callback_query(F.data == "show_likes_yes")
-async def show_who_liked_me(callback: CallbackQuery, swipe_service: SwipeService, state: FSMContext):
+@swipe_router.message(F.text == ApplicationStatus.show_application(ApplicationStatus.SHOW))
+async def show_who_liked_me(
+    message: Message, swipe_service: SwipeService, swipe_presenter: SwipePresenter, state: FSMContext
+):
     """Показать анкеты тех, кто лайкнул"""
-    user_id = callback.from_user.id
+    user_id = message.from_user.id
 
     # Получаем анкеты тех, кто лайкнул
     profiles = await swipe_service.get_profiles_who_liked_me(user_id)
 
     if not profiles:
-        await callback.message.edit_text("Никто пока не лайкнул твою анкету 😔")
-        await callback.answer()
+        await message.answer("Никто пока не лайкнул твою анкету 😔")
         return
 
     # Устанавливаем состояние "просмотр лайкнувших"
     await state.set_state(SwipeStates.viewing_likes)
 
-    # Показываем первую анкету из лайкнувших (БЕЗ имени)
+    # Сохраняем ID первого профиля
     first_profile = profiles[0]
-    profile_text = swipe_service.format_profile(first_profile)
+    await state.update_data(current_profile_id=first_profile.tg_id)
 
-    if first_profile.photo_id:
-        await callback.message.answer_photo(
-            photo=first_profile.photo_id, caption=profile_text, reply_markup=get_swipe_keyboard(first_profile.tg_id)
-        )
-    else:
-        await callback.message.answer(profile_text, reply_markup=get_swipe_keyboard(first_profile.tg_id))
-
-    await callback.message.delete()
-    await callback.answer("Смотри кто тебя лайкнул! ❤️")
+    # Показываем первую анкету
+    await swipe_presenter.send_profile(message, first_profile)
+    await message.answer("Смотри кто тебя лайкнул! ❤️")
 
 
-@swipe_router.callback_query(F.data == "show_likes_no")
-async def decline_show_likes(callback: CallbackQuery):
+@swipe_router.message(F.text == ApplicationStatus.show_application(ApplicationStatus.SKIP))
+async def decline_show_likes(message: Message):
     """Отказ от просмотра лайкнувших"""
-    await callback.message.edit_text("Хорошо, продолжай просмотр с /search")
-    await callback.answer()
+    await message.answer("Хорошо, продолжай просмотр с /search")
 
 
-@swipe_router.callback_query(F.data.startswith("like_"))
-async def process_like_callback(
-    callback: CallbackQuery, swipe_service: SwipeService, state: FSMContext, swipe_presenter: SwipePresenter, bot: Bot
+@swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.LIKE), SwipeStates.normal_browsing)
+@swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.LIKE), SwipeStates.viewing_likes)
+async def process_like(
+    message: Message, swipe_service: SwipeService, state: FSMContext, swipe_presenter: SwipePresenter, bot: Bot
 ):
     """Обработка нажатия на кнопку лайк"""
-    to_user_id = int(callback.data.split("_")[1])
-    from_user_id = callback.from_user.id
+    from_user_id = message.from_user.id
 
-    await callback.message.edit_reply_markup(reply_markup=None)
+    # Получаем ID текущего профиля из состояния
+    data = await state.get_data()
+    to_user_id = data.get("current_profile_id")
+
+    if not to_user_id:
+        await message.answer("Ошибка: профиль не найден. Начни просмотр заново с /search")
+        return
 
     # Получаем текущее состояние
     current_state = await state.get_state()
 
-    # TODO: ПРОБЛЕМА #2 - Service принимает bot и отправляет сообщения
-    # process_like не должен отправлять уведомления! Это работа Handler или Presenter
-    # Service должен только вернуть данные о мэтче, а Handler решает что с ними делать
+    # Обрабатываем лайк
     result = await swipe_service.process_like(from_user_id, to_user_id)
 
-    # TODO: ПРОБЛЕМА #3 - Форматирование UI в Handler + использование dict
-    # Эта логика должна быть в Presenter
-    #
-    # ❌ ПЛОХО: result["is_match"] - можно ошибиться в названии ключа
-    # ✅ ХОРОШО: result.is_match - автодополнение, проверка типов
-    #
-    # После рефакторинга будет:
-    # result = await swipe_service.process_like(from_user_id, to_user_id)  # БЕЗ bot!
-    # if result.is_match:  # Pydantic модель вместо dict
-    #     await presenter.send_match_notification(callback.message, result.matched_user)
     if result.is_match:
+        # Отправляем сообщение о мэтче
         match_text = swipe_presenter.format_match_message(result.matched_user)
-        await callback.message.answer(match_text)
+        await message.answer(match_text)
 
         # Уведомляем второго пользователя
         await bot.send_message(to_user_id, swipe_presenter.format_match_message(result.current_user))
     else:
         # Уведомление о лайке
-        from src.bot.keyboards.swipe import get_show_likes_keyboard
-
         await bot.send_message(
             to_user_id, swipe_presenter.format_like_notification(), reply_markup=get_show_likes_keyboard()
         )
@@ -158,29 +104,38 @@ async def process_like_callback(
     # Определяем следующую анкету
     if current_state == SwipeStates.viewing_likes:
         profiles = await swipe_service.get_profiles_who_liked_me(from_user_id)
-        next_profile = profiles[0] if profiles else result.next_profile  # ✅ .next_profile
-
+        next_profile = profiles[0] if profiles else result.next_profile
     else:
-        next_profile = result.next_profile  # ✅ .next_profile
+        next_profile = result.next_profile
 
     if not next_profile:
-        await callback.message.answer("😔 Анкеты закончились!")
+        await message.answer("😔 Анкеты закончились!")
         await state.clear()
-        await callback.answer()
         return
 
+    # Сохраняем ID следующего профиля
+    await state.update_data(current_profile_id=next_profile.tg_id)
+
     # Отправляем следующую анкету
-    await swipe_presenter.send_profile(callback, next_profile)
-    await callback.answer("❤️ Лайк отправлен!")
+    await swipe_presenter.send_profile(message, next_profile)
+    await message.answer("❤️ Лайк отправлен!")
 
 
-@swipe_router.callback_query(F.data.startswith("dislike_"))
-async def process_dislike_callback(callback: CallbackQuery, swipe_service: SwipeService, state: FSMContext):
+@swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.DISLIKE), SwipeStates.normal_browsing)
+@swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.DISLIKE), SwipeStates.viewing_likes)
+async def process_dislike(
+    message: Message, swipe_service: SwipeService, swipe_presenter: SwipePresenter, state: FSMContext
+):
     """Обработка нажатия на кнопку дизлайк"""
-    to_user_id = int(callback.data.split("_")[1])
-    from_user_id = callback.from_user.id
+    from_user_id = message.from_user.id
 
-    await callback.message.edit_reply_markup(reply_markup=None)
+    # Получаем ID текущего профиля из состояния
+    data = await state.get_data()
+    to_user_id = data.get("current_profile_id")
+
+    if not to_user_id:
+        await message.answer("Ошибка: профиль не найден. Начни просмотр заново с /search")
+        return
 
     # Получаем текущее состояние
     current_state = await state.get_state()
@@ -192,34 +147,26 @@ async def process_dislike_callback(callback: CallbackQuery, swipe_service: Swipe
     if current_state == SwipeStates.viewing_likes:
         # Если смотрели лайкнувших - показываем следующего из них
         profiles = await swipe_service.get_profiles_who_liked_me(from_user_id)
-        next_profile = profiles[0] if profiles else await swipe_service.get_next_profile(from_user_id)
-        hide_name = bool(profiles)
+        next_profile = profiles[0] if profiles else result.next_profile
     else:
         # Обычный просмотр
-        next_profile = result["next_profile"]
-        hide_name = False
+        next_profile = result.next_profile
 
     if not next_profile:
-        await callback.message.answer("😔 Анкеты закончились! Попробуй позже.")
+        await message.answer("😔 Анкеты закончились! Попробуй позже.")
         await state.clear()
-        await callback.answer()
         return
 
+    # Сохраняем ID следующего профиля
+    await state.update_data(current_profile_id=next_profile.tg_id)
+
     # Отправляем следующую анкету
-    profile_text = swipe_service.format_profile(next_profile, hide_name=hide_name)
-
-    if next_profile.photo_id:
-        await callback.message.answer_photo(
-            photo=next_profile.photo_id, caption=profile_text, reply_markup=get_swipe_keyboard(next_profile.tg_id)
-        )
-    else:
-        await callback.message.answer(profile_text, reply_markup=get_swipe_keyboard(next_profile.tg_id))
-
-    await callback.answer("👎 Пропущено")
+    await swipe_presenter.send_profile(message, next_profile)
+    await message.answer("👎 Пропущено")
 
 
 @swipe_router.message(Command("matches"))
-async def show_matches(message: Message, swipe_service: SwipeService, swipe_presenter: SwipePresenter):
+async def show_matches(message: Message, swipe_service: SwipeService):
     """Показать мэтчи"""
     user_id = message.from_user.id
     matches = await swipe_service.get_user_matches_with_details(user_id)
@@ -228,11 +175,11 @@ async def show_matches(message: Message, swipe_service: SwipeService, swipe_pres
         await message.answer("У тебя пока нет мэтчей 😔")
         return
 
-    # ✅ Форматирование в Presenter + используем Pydantic модели
+    # Форматирование списка мэтчей
     matches_text = "💕 Твои мэтчи:\n\n"
-    for match_data in matches:  # match_data это MatchWithDetails
-        user = match_data.user  # ✅ .user вместо ["user"]
-        username = f"@{user.username}" if user.username else "без username"
+    for match_data in matches:
+        user = match_data.user
+        username = f"@{user.username}"
         matches_text += f"• {user.name} - {username}\n"
 
     await message.answer(matches_text)

@@ -1,32 +1,5 @@
 # src/bot/services/swipe.py
-"""
-TODO для джуна: Очистка Service от UI-логики
 
-ПРОБЛЕМЫ В ЭТОМ ФАЙЛЕ:
-1. Service импортирует клавиатуры (строка 10) - это UI, не бизнес-логика
-2. Service отправляет Telegram-сообщения (строки 136-151) - это должен делать Handler/Presenter
-3. format_profile() - это UI-функция, должна быть в Presenter
-4. Service создаёт БД-сессии напрямую (строки 33, 80) - должно быть в DAO
-
-ПЛАН РЕФАКТОРИНГА:
-1. Убрать импорт get_show_likes_keyboard - клавиатуры должен создавать Presenter
-2. Убрать bot.send_message из process_like - вместо этого вернуть данные:
-   return {
-       "is_match": bool,
-       "matched_user": Users | None,
-       "notification_needed": bool,  # нужно ли отправить уведомление
-       "next_profile": Users | None
-   }
-3. Переместить format_profile в SwipePresenter
-4. Вынести get_next_profile и get_profiles_who_liked_me в DAO
-5. Service должен только координировать DAO и возвращать структурированные данные
-
-ПРАВИЛЬНАЯ СТРУКТУРА Service:
-- Принимает данные от Handler
-- Вызывает методы DAO для работы с БД
-- Применяет бизнес-правила (проверка взаимных лайков, создание мэтчей)
-- Возвращает данные Handler'у для отображения
-"""
 
 import logging
 
@@ -79,47 +52,6 @@ class SwipeService:
         return await self.users_dao.get_profiles_by_ids(not_rated)
 
     async def process_like(self, from_user_id: int, to_user_id: int) -> LikeProcessResult:
-        """
-        Обработка лайка
-
-        Возвращает:
-        - is_match: bool - произошёл ли мэтч
-        - next_profile: Users - следующая анкета
-        - matched_user: Users - пользователь с которым мэтч (если есть)
-        """
-        # bot не должен быть параметром Service!
-        #
-        # ПРАВИЛЬНЫЙ ПОДХОД:
-        # 1. Service обрабатывает лайк и возвращает данные
-        # 2. Handler получает эти данные и решает что отправить
-        # 3. Presenter форматирует и отправляет сообщения
-        #
-        # Нужно:
-        # - Удалить параметр bot
-        # - Удалить bot.send_message (строки 136-151)
-        # - ИСПОЛЬЗОВАТЬ PYDANTIC МОДЕЛИ вместо dict!
-        #
-        # Создай модель в src/bot/models/responses.py:
-        # class LikeProcessResult(BaseModel):
-        #     is_match: bool
-        #     matched_user: Users | None
-        #     current_user: Users
-        #     next_profile: Users | None
-        #
-        # И возвращай:
-        # return LikeProcessResult(
-        #     is_match=is_match,
-        #     matched_user=matched_user,
-        #     current_user=current_user,
-        #     next_profile=next_profile
-        # )
-        #
-        # ПРЕИМУЩЕСТВА Pydantic:
-        # - Автодополнение в IDE (result.is_match вместо result["is_match"])
-        # - Валидация типов
-        # - Защита от опечаток в ключах
-        # - Документирование структуры данных
-
         logger.info(f"Лайк от {from_user_id} к {to_user_id}")
 
         # Добавляем лайк
