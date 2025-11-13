@@ -1,4 +1,4 @@
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove
 
 from src.bot.keyboards.swipe import get_swipe_keyboard
 from src.bot.models.user import Users
@@ -35,4 +35,4 @@ class SwipePresenter:
         """Сообщение когда анкеты закончились"""
         text = "😔 К сожалению, подходящих анкет пока нет. Попробуй позже!"
 
-        await message.answer(text)
+        await message.answer(text, reply_markup=ReplyKeyboardRemove())

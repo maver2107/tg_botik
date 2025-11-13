@@ -1,7 +1,7 @@
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message
+from aiogram.types import Message, ReplyKeyboardRemove  # Добавлен импорт
 
 from src.bot.enum.like import ApplicationStatus, LikeStatus
 from src.bot.keyboards.swipe import get_show_likes_keyboard
@@ -24,6 +24,7 @@ async def start_search(
 
     if not next_profile:
         await swipe_presenter.send_no_profiles_message(message)
+        await state.clear()
         return
 
     # Сохраняем ID текущего профиля в состоянии
@@ -109,7 +110,7 @@ async def process_like(
         next_profile = result.next_profile
 
     if not next_profile:
-        await message.answer("😔 Анкеты закончились!")
+        await swipe_presenter.send_no_profiles_message(message)
         await state.clear()
         return
 
@@ -153,7 +154,7 @@ async def process_dislike(
         next_profile = result.next_profile
 
     if not next_profile:
-        await message.answer("😔 Анкеты закончились! Попробуй позже.")
+        await swipe_presenter.send_no_profiles_message(message)
         await state.clear()
         return
 
