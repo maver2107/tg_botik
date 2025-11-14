@@ -16,7 +16,7 @@ class SwipePresenter:
     async def send_profile(message: Message, profile: Users):
         """Отправка анкеты пользователю"""
         profile_text = SwipePresenter.format_profile(profile)
-        keyboard = get_swipe_keyboard()  # Обычные кнопки БЕЗ user_id(нужнно сохрнаитб в хендлере юзер id)
+        keyboard = get_swipe_keyboard()
         await message.answer_photo(photo=profile.photo_id, caption=profile_text, reply_markup=keyboard)
 
     @staticmethod

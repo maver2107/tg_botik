@@ -51,6 +51,13 @@ class UsersDAO(BaseDAO):
             return result.scalar_one_or_none()
 
     @classmethod
+    async def get_by_id(cls, user_id: int) -> Users:
+        async with async_session_maker() as session:
+            query = select(cls.model).where(cls.model.id == user_id)
+            result = await session.execute(query)
+            return result.scalar_one_or_none()
+
+    @classmethod
     async def get_next_profile(
         cls, user_id: int, rated_user_ids: List[int], gender_interest: Gender
     ) -> Optional[Users]:
