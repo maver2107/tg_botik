@@ -15,7 +15,7 @@ class Likes(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     from_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.tg_id"), nullable=False)
     to_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.tg_id"), nullable=False)
-    is_like: Mapped[bool] = mapped_column(Boolean, nullable=False)  # True = like, False = dislike
+    is_like: Mapped[bool] = mapped_column(Boolean, nullable=True)  # True = like, False = dislike
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
