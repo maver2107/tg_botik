@@ -90,3 +90,11 @@ class UsersDAO(BaseDAO):
             users_query = select(Users).where(Users.tg_id.in_(not_rated_yet))
             users_result = await session.execute(users_query)
             return users_result.scalars().all()
+
+    @classmethod
+    async def set_status_questionnaire_true(cls, tg_id: int):
+        return await cls.update_user_data(tg_id, status_of_the_questionnaire=True)
+
+    @classmethod
+    async def set_status_questionnaire_false(cls, tg_id: int):
+        return await cls.update_user_data(tg_id, status_of_the_questionnaire=False)

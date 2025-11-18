@@ -21,3 +21,6 @@ class UserProfileService:
             return None
 
         return current_user
+
+    async def off_profile(self, tg_id: int) -> Users:
+        await self.users_dao.set_status_questionnaire_false(tg_id)

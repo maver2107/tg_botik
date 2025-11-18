@@ -39,4 +39,7 @@ async def swipe_start_search(
 
 @user_router.message(F.text == UserProfile.get_button_text(UserProfile.OFF_PROFILE), UserProfileStates.main_menu)
 async def off_profile(message: Message, user_profile_service: UserProfileService, state: FSMContext):
-    pass
+    tg_id = message.from_user.id
+    await user_profile_service.off_profile(tg_id)
+    await message.answer("Профиль отключен")
+    await state.clear()
