@@ -2,19 +2,15 @@ from enum import Enum
 
 
 class UserProfile(str, Enum):
-    EDIT_PROFILE = "male"
-    OFF_PROFILE = "female"
-    SEARCH = "not important"
+    EDIT_PROFILE = "edit_profile"
+    OFF_PROFILE = "off_profile"
+    SEARCH = "search_profiles"
 
     @classmethod
-    def get_display_name(cls, gender: "Gender") -> str:
-        return "Я парень" if gender == cls.MALE else "Я девушка"
-
-    @classmethod
-    def get_display_gender_interest(cls, gender: "Gender") -> str:
-        if gender == cls.MALE:
-            return "Парни"
-        elif gender == cls.FEMALE:
-            return "Девушки"
-        else:
-            return "Все равно"
+    def get_button_text(cls, profile_action: "UserProfile") -> str:
+        if profile_action == cls.EDIT_PROFILE:
+            return "📝 Изменить анкету"
+        elif profile_action == cls.OFF_PROFILE:
+            return "🚫 Выключить профиль"
+        elif profile_action == cls.SEARCH:
+            return "👀 Смотреть анкеты"

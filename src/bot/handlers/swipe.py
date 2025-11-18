@@ -162,7 +162,6 @@ async def process_dislike(
 
     # Отправляем следующую анкету
     await swipe_presenter.send_profile(message, next_profile)
-    await message.answer("👎 Пропущено")
 
 
 @swipe_router.message(Command("matches"))
