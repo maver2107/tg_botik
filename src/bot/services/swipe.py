@@ -18,6 +18,9 @@ class SwipeService:
 
     async def get_next_profile(self, user_id: int) -> Users | None:
         # 1. Получаем текущего пользователя
+        status = await self.users_dao.get_status_of_questionnaire(user_id)
+        if status == False:
+            await self.users_dao.set_status_questionnaire_true(user_id)
         current_user = await self.users_dao.get_by_tg_id(user_id)
         if not current_user:
             logger.error(f"Пользователь {user_id} не найден")

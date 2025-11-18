@@ -41,5 +41,6 @@ async def swipe_start_search(
 async def off_profile(message: Message, user_profile_service: UserProfileService, state: FSMContext):
     tg_id = message.from_user.id
     await user_profile_service.off_profile(tg_id)
-    await message.answer("Профиль отключен")
-    await state.clear()
+    await message.answer(
+        'Анкета отключена. Если захотите ее включить, то нажмите на "👀 Смотреть анкеты", либо напишите /search'
+    )

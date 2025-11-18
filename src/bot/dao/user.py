@@ -98,3 +98,11 @@ class UsersDAO(BaseDAO):
     @classmethod
     async def set_status_questionnaire_false(cls, tg_id: int):
         return await cls.update_user_data(tg_id, status_of_the_questionnaire=False)
+
+    @classmethod
+    async def get_status_of_questionnaire(cls, tg_id: int) -> bool:
+        async with async_session_maker() as session:
+            query = select(cls.model.status_of_the_questionnaire).where(cls.model.tg_id == tg_id)
+            result = await session.execute(query)
+            status = result.scalar_one_or_none()
+            return status
