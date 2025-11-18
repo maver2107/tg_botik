@@ -99,6 +99,27 @@ class LikesDAO(BaseDAO):
             result = await session.execute(query)
             return [row[0] for row in result.all()]
 
+    @classmethod
+    async def get_users_i_disliked_from_list(
+        cls,
+        user_id: int,
+        other_user_ids: Sequence[int],
+    ) -> list[int]:
+        """
+        Вернуть из списка other_user_ids тех, кому user_id поставил дизлайк (is_like = False).
+        """
+        if not other_user_ids:
+            return []
+
+        async with async_session_maker() as session:
+            query = select(cls.model.to_user_id).where(  # type: ignore
+                cls.model.from_user_id == user_id,  # type: ignore
+                cls.model.to_user_id.in_(other_user_ids),  # type: ignore
+                cls.model.is_like.is_(False),  # type: ignore
+            )
+            result = await session.execute(query)
+            return [row[0] for row in result.all()]
+
 
 class MatchesDAO(BaseDAO):
     model = Matches  # type: ignore

@@ -36,30 +36,30 @@ class SwipeService:
         return next_profile
 
     async def get_profiles_who_liked_me(self, user_id: int) -> list[Users]:
-        """
-        Получить анкеты тех, кто лайкнул меня,
-        но кого я ещё НЕ лайкнул в ответ.
-        Дизлайк не блокирует показ в этом списке.
-        """
-        # 1. Кто лайкнул меня
+        """Получить анкеты тех, кто лайкнул меня, но кого я ещё не лайкнул в ответ и не дизлайкнул"""
         liked_me_ids = await self.likes_dao.get_users_who_liked_me(user_id)
         if not liked_me_ids:
             return []
 
-        # 2. Кому я уже поставил лайк в ответ (is_like = True)
         liked_back_ids = await self.likes_dao.get_users_i_liked_from_list(
+            user_id=user_id,
+            other_user_ids=liked_me_ids,
+        )
+
+        disliked_ids = await self.likes_dao.get_users_i_disliked_from_list(
             user_id=user_id,
             other_user_ids=liked_me_ids,
         )
 
         liked_me_set = set(liked_me_ids)
         liked_back_set = set(liked_back_ids)
-        to_show_ids = list(liked_me_set - liked_back_set)
+        disliked_set = set(disliked_ids)
+
+        to_show_ids = list(liked_me_set - liked_back_set - disliked_set)
 
         if not to_show_ids:
             return []
 
-        # 3. Получить профили тех, кого я ещё не лайкнул в ответ
         return await self.users_dao.get_profiles_by_ids(to_show_ids)
 
     async def process_like(self, from_user_id: int, to_user_id: int) -> LikeProcessResult:
