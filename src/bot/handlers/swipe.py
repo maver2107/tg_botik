@@ -1,7 +1,7 @@
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, ReplyKeyboardRemove  # Добавлен импорт
+from aiogram.types import Message  # Добавлен импорт
 
 from src.bot.enum.like import ApplicationStatus, LikeStatus
 from src.bot.keyboards.swipe import get_show_likes_keyboard
@@ -119,7 +119,6 @@ async def process_like(
 
     # Отправляем следующую анкету
     await swipe_presenter.send_profile(message, next_profile)
-    await message.answer("❤️ Лайк отправлен!")
 
 
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.DISLIKE), SwipeStates.normal_browsing)
@@ -163,7 +162,6 @@ async def process_dislike(
 
     # Отправляем следующую анкету
     await swipe_presenter.send_profile(message, next_profile)
-    await message.answer("👎 Пропущено")
 
 
 @swipe_router.message(Command("matches"))

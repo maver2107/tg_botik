@@ -1,7 +1,8 @@
 # src/likes/dao.py
-from typing import List
 
-from sqlalchemy import and_, or_, select
+from typing import List, Sequence
+
+from sqlalchemy import and_, delete, or_, select
 
 from src.bot.dao.base import BaseDAO
 from src.bot.models.like import Likes, Matches
@@ -26,18 +27,17 @@ class LikesDAO(BaseDAO):
                     and_(
                         cls.model.from_user_id == user1_id,  # type: ignore
                         cls.model.to_user_id == user2_id,  # type: ignore
-                        cls.model.is_like == True,  # type: ignore
+                        cls.model.is_like.is_(True),  # type: ignore
                     ),
                     and_(
                         cls.model.from_user_id == user2_id,  # type: ignore
                         cls.model.to_user_id == user1_id,  # type: ignore
-                        cls.model.is_like == True,  # type: ignore
+                        cls.model.is_like.is_(True),  # type: ignore
                     ),
                 )
             )
             result = await session.execute(query)
             likes = result.scalars().all()
-
             # Если есть 2 лайка (взаимные), это мэтч
             return len(likes) == 2
 
@@ -54,30 +54,83 @@ class LikesDAO(BaseDAO):
 
     @classmethod
     async def get_rated_user_ids(cls, from_user_id: int) -> List[int]:
+        """ID всех анкет, которые пользователь уже оценил (лайк или дизлайк)"""
         async with async_session_maker() as session:
-            query = select(cls.model.to_user_id).where(cls.model.from_user_id == from_user_id)
+            query = select(cls.model.to_user_id).where(
+                cls.model.from_user_id == from_user_id  # type: ignore
+            )
             result = await session.execute(query)
             return [row[0] for row in result.all()]
 
     @classmethod
-    async def get_users_who_liked_me(cls, user_id):
+    async def get_users_who_liked_me(cls, user_id: int) -> List[int]:
+        """ID пользователей, которые лайкнули меня"""
         async with async_session_maker() as session:
-            # Получаем ID пользователей, которые лайкнули текущего
             liked_me_query = select(cls.model.from_user_id).where(
-                and_(cls.model.to_user_id == user_id, cls.model.is_like.is_(True))
+                and_(
+                    cls.model.to_user_id == user_id,  # type: ignore
+                    cls.model.is_like.is_(True),  # type: ignore
+                )
             )
             liked_me_result = await session.execute(liked_me_query)
             liked_me_ids = [row[0] for row in liked_me_result.all()]
             return liked_me_ids
 
     @classmethod
-    async def get_unrated_from_list(cls, user_id, liked_me_ids):
+    async def get_users_i_liked_from_list(
+        cls,
+        user_id: int,
+        other_user_ids: Sequence[int],
+    ) -> list[int]:
+        """
+        НОВЫЙ МЕТОД.
+        Вернуть из списка other_user_ids только тех, кого user_id лайкнул (is_like = True).
+        Дизлайки не учитываются.
+        """
+        if not other_user_ids:
+            return []
+
         async with async_session_maker() as session:
-            rated_query = select(cls.model.to_user_id).where(cls.model.from_user_id == user_id)
-            rated_result = await session.execute(rated_query)
-            rated_ids = [row[0] for row in rated_result.all()]
-            not_rated_yet = [uid for uid in liked_me_ids if uid not in rated_ids]
-            return not_rated_yet
+            query = select(cls.model.to_user_id).where(  # type: ignore
+                cls.model.from_user_id == user_id,  # type: ignore
+                cls.model.to_user_id.in_(other_user_ids),  # type: ignore
+                cls.model.is_like.is_(True),  # type: ignore
+            )
+            result = await session.execute(query)
+            return [row[0] for row in result.all()]
+
+    @classmethod
+    async def get_users_i_disliked_from_list(
+        cls,
+        user_id: int,
+        other_user_ids: Sequence[int],
+    ) -> list[int]:
+        """
+        Вернуть из списка other_user_ids тех, кому user_id поставил дизлайк (is_like = False).
+        """
+        if not other_user_ids:
+            return []
+
+        async with async_session_maker() as session:
+            query = select(cls.model.to_user_id).where(  # type: ignore
+                cls.model.from_user_id == user_id,  # type: ignore
+                cls.model.to_user_id.in_(other_user_ids),  # type: ignore
+                cls.model.is_like.is_(False),  # type: ignore
+            )
+            result = await session.execute(query)
+            return [row[0] for row in result.all()]
+
+    @classmethod
+    async def delete_likes_by_user(cls, tg_id: int):
+        async with async_session_maker() as session:
+            query = delete(cls.model).where(
+                or_(
+                    cls.model.from_user_id == tg_id,  # type: ignore
+                    cls.model.to_user_id == tg_id,  # type: ignore
+                )
+            )
+            await session.execute(query)
+            await session.commit()
 
 
 class MatchesDAO(BaseDAO):
@@ -86,10 +139,9 @@ class MatchesDAO(BaseDAO):
     @classmethod
     async def create_match(cls, user1_id: int, user2_id: int):
         """Создать мэтч"""
-        # Сортируем ID чтобы избежать дубликатов (1-2 и 2-1)
+        # Сортируем ID, чтобы избежать дубликатов (1-2 и 2-1)
         if user1_id > user2_id:
             user1_id, user2_id = user2_id, user1_id
-
         await cls.add(user1_id=user1_id, user2_id=user2_id)
 
     @classmethod
@@ -104,3 +156,15 @@ class MatchesDAO(BaseDAO):
             )
             result = await session.execute(query)
             return result.scalars().all()
+
+    @classmethod
+    async def delete_matches_by_user(cls, tg_id: int):
+        async with async_session_maker() as session:
+            query = delete(cls.model).where(
+                or_(
+                    cls.model.user1_id == tg_id,  # type: ignore
+                    cls.model.user2_id == tg_id,  # type: ignore
+                )
+            )
+            await session.execute(query)
+            await session.commit()

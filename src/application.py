@@ -5,8 +5,9 @@ from aiogram.enums import ParseMode
 from src.bot.handlers.questionnaire import questionnaire_router
 from src.bot.handlers.start import start_router
 from src.bot.handlers.swipe import swipe_router
-from src.bot.presenters import get_swipe_presenter
-from src.bot.services import get_questionnaire_service, get_swipe_service
+from src.bot.handlers.user_profile import user_router
+from src.bot.presenters import get_swipe_presenter, get_user_profile_presenter
+from src.bot.services import get_questionnaire_service, get_swipe_service, get_user_profile_service
 from src.config import settings
 
 
@@ -21,10 +22,13 @@ def setup_dispatcher() -> Dispatcher:
     dp.workflow_data["questionnaire_service"] = get_questionnaire_service()
     dp.workflow_data["swipe_service"] = get_swipe_service()
     dp.workflow_data["swipe_presenter"] = get_swipe_presenter()
+    dp.workflow_data["user_profile_service"] = get_user_profile_service()
+    dp.workflow_data["user_profile_presenter"] = get_user_profile_presenter()
 
     dp.include_router(start_router)
     dp.include_router(questionnaire_router)
     dp.include_router(swipe_router)
+    dp.include_router(user_router)
     return dp
 
 

@@ -1,6 +1,5 @@
 # src/bot/services/swipe.py
 
-
 import logging
 
 from src.bot.dao.like import LikesDAO, MatchesDAO
@@ -17,14 +16,17 @@ class SwipeService:
         self.matches_dao = matches_dao
         self.users_dao = users_dao
 
-    async def get_next_profile(self, user_id: int) -> Users:
+    async def get_next_profile(self, user_id: int) -> Users | None:
         # 1. Получаем текущего пользователя
+        status = await self.users_dao.get_status_of_questionnaire(user_id)
+        if status == False:
+            await self.users_dao.set_status_questionnaire_true(user_id)
         current_user = await self.users_dao.get_by_tg_id(user_id)
         if not current_user:
             logger.error(f"Пользователь {user_id} не найден")
             return None
 
-        # 2. Получаем ID всех уже оценённых пользователей
+        # 2. Получаем ID всех уже оценённых пользователей (лайк или дизлайк)
         rated_user_ids = await self.likes_dao.get_rated_user_ids(user_id)
 
         # 3. Получаем следующую анкету
@@ -37,19 +39,31 @@ class SwipeService:
         return next_profile
 
     async def get_profiles_who_liked_me(self, user_id: int) -> list[Users]:
-        """Получить анкеты тех, кто лайкнул меня"""
-        # 1. Кто лайкнул
+        """Получить анкеты тех, кто лайкнул меня, но кого я ещё не лайкнул в ответ и не дизлайкнул"""
         liked_me_ids = await self.likes_dao.get_users_who_liked_me(user_id)
         if not liked_me_ids:
             return []
 
-        # 2. Кого я ещё не оценил
-        not_rated = await self.likes_dao.get_unrated_from_list(user_id, liked_me_ids)
-        if not not_rated:
+        liked_back_ids = await self.likes_dao.get_users_i_liked_from_list(
+            user_id=user_id,
+            other_user_ids=liked_me_ids,
+        )
+
+        disliked_ids = await self.likes_dao.get_users_i_disliked_from_list(
+            user_id=user_id,
+            other_user_ids=liked_me_ids,
+        )
+
+        liked_me_set = set(liked_me_ids)
+        liked_back_set = set(liked_back_ids)
+        disliked_set = set(disliked_ids)
+
+        to_show_ids = list(liked_me_set - liked_back_set - disliked_set)
+
+        if not to_show_ids:
             return []
 
-        # 3. Получить профили
-        return await self.users_dao.get_profiles_by_ids(not_rated)
+        return await self.users_dao.get_profiles_by_ids(to_show_ids)
 
     async def process_like(self, from_user_id: int, to_user_id: int) -> LikeProcessResult:
         logger.info(f"Лайк от {from_user_id} к {to_user_id}")
@@ -73,14 +87,16 @@ class SwipeService:
         next_profile = await self.get_next_profile(from_user_id)
 
         return LikeProcessResult(
-            is_match=is_match, matched_user=matched_user, current_user=current_user, next_profile=next_profile
+            is_match=is_match,
+            matched_user=matched_user,
+            current_user=current_user,
+            next_profile=next_profile,
         )
 
     async def process_dislike(self, from_user_id: int, to_user_id: int) -> DislikeProcessResult:
         """
         Обработка дизлайка
         """
-
         logger.info(f"Дизлайк от {from_user_id} к {to_user_id}")
 
         # Добавляем дизлайк
@@ -94,7 +110,7 @@ class SwipeService:
     async def get_user_matches_with_details(self, user_id: int) -> list[MatchWithDetails]:
         """Получить мэтчи с данными пользователей"""
         matches = await self.matches_dao.get_user_matches(user_id)
-        result = []
+        result: list[MatchWithDetails] = []
 
         for match in matches:
             other_id = match.user2_id if match.user1_id == user_id else match.user1_id

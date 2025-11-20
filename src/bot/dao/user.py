@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 
 from src.bot.dao.base import BaseDAO
 from src.bot.enum.gender import Gender
@@ -51,6 +51,13 @@ class UsersDAO(BaseDAO):
             return result.scalar_one_or_none()
 
     @classmethod
+    async def get_by_id(cls, user_id: int) -> Users:
+        async with async_session_maker() as session:
+            query = select(cls.model).where(cls.model.id == user_id)
+            result = await session.execute(query)
+            return result.scalar_one_or_none()
+
+    @classmethod
     async def get_next_profile(
         cls, user_id: int, rated_user_ids: List[int], gender_interest: Gender
     ) -> Optional[Users]:
@@ -61,6 +68,7 @@ class UsersDAO(BaseDAO):
                     cls.model.name.isnot(None),
                     cls.model.age.isnot(None),
                     cls.model.city.isnot(None),
+                    cls.model.status_of_the_questionnaire,
                 )
             )
 
@@ -83,3 +91,27 @@ class UsersDAO(BaseDAO):
             users_query = select(Users).where(Users.tg_id.in_(not_rated_yet))
             users_result = await session.execute(users_query)
             return users_result.scalars().all()
+
+    @classmethod
+    async def set_status_questionnaire_true(cls, tg_id: int):
+        return await cls.update_user_data(tg_id, status_of_the_questionnaire=True)
+
+    @classmethod
+    async def set_status_questionnaire_false(cls, tg_id: int):
+        return await cls.update_user_data(tg_id, status_of_the_questionnaire=False)
+
+    @classmethod
+    async def get_status_of_questionnaire(cls, tg_id: int) -> bool:
+        async with async_session_maker() as session:
+            query = select(cls.model.status_of_the_questionnaire).where(cls.model.tg_id == tg_id)
+            result = await session.execute(query)
+            status = result.scalar_one_or_none()
+            return status
+
+    @classmethod
+    async def delete_user(cls, tg_id: int):
+        """Удаляет пользователя по tg_id (сработает только при удалении like and maches юзера)"""
+        async with async_session_maker() as session:
+            query = delete(cls.model).where(cls.model.tg_id == tg_id)
+            await session.execute(query)
+            await session.commit()
