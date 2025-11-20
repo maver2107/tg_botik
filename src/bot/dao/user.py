@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, delete, select
 
 from src.bot.dao.base import BaseDAO
 from src.bot.enum.gender import Gender
@@ -68,6 +68,7 @@ class UsersDAO(BaseDAO):
                     cls.model.name.isnot(None),
                     cls.model.age.isnot(None),
                     cls.model.city.isnot(None),
+                    cls.model.status_of_the_questionnaire,
                 )
             )
 
@@ -106,3 +107,11 @@ class UsersDAO(BaseDAO):
             result = await session.execute(query)
             status = result.scalar_one_or_none()
             return status
+
+    @classmethod
+    async def delete_user(cls, tg_id: int):
+        """Удаляет пользователя по tg_id (сработает только при удалении like and maches юзера)"""
+        async with async_session_maker() as session:
+            query = delete(cls.model).where(cls.model.tg_id == tg_id)
+            await session.execute(query)
+            await session.commit()

@@ -4,6 +4,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
 from src.bot.enum.user_profile import UserProfile
+from src.bot.handlers.start import cmd_start
 from src.bot.handlers.swipe import start_search
 from src.bot.keyboards.user_profile import get_user_profile_keyboard
 from src.bot.presenters.swipe import SwipePresenter
@@ -44,3 +45,10 @@ async def off_profile(message: Message, user_profile_service: UserProfileService
     await message.answer(
         'Анкета отключена. Если захотите ее включить, то нажмите на "👀 Смотреть анкеты", либо напишите /search'
     )
+
+
+@user_router.message(F.text == UserProfile.get_button_text(UserProfile.EDIT_PROFILE), UserProfileStates.main_menu)
+async def edit_profile(message: Message, user_profile_service: UserProfileService, state: FSMContext):
+    tg_id = message.from_user.id
+    await user_profile_service.delete_user(tg_id)
+    await cmd_start(message, state)

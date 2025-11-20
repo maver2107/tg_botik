@@ -2,7 +2,7 @@
 
 from typing import List, Sequence
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, delete, or_, select
 
 from src.bot.dao.base import BaseDAO
 from src.bot.models.like import Likes, Matches
@@ -120,6 +120,18 @@ class LikesDAO(BaseDAO):
             result = await session.execute(query)
             return [row[0] for row in result.all()]
 
+    @classmethod
+    async def delete_likes_by_user(cls, tg_id: int):
+        async with async_session_maker() as session:
+            query = delete(cls.model).where(
+                or_(
+                    cls.model.from_user_id == tg_id,  # type: ignore
+                    cls.model.to_user_id == tg_id,  # type: ignore
+                )
+            )
+            await session.execute(query)
+            await session.commit()
+
 
 class MatchesDAO(BaseDAO):
     model = Matches  # type: ignore
@@ -144,3 +156,15 @@ class MatchesDAO(BaseDAO):
             )
             result = await session.execute(query)
             return result.scalars().all()
+
+    @classmethod
+    async def delete_matches_by_user(cls, tg_id: int):
+        async with async_session_maker() as session:
+            query = delete(cls.model).where(
+                or_(
+                    cls.model.user1_id == tg_id,  # type: ignore
+                    cls.model.user2_id == tg_id,  # type: ignore
+                )
+            )
+            await session.execute(query)
+            await session.commit()
