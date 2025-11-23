@@ -71,6 +71,9 @@ class SwipeService:
         # Добавляем лайк
         await self.likes_dao.add_like(from_user_id=from_user_id, to_user_id=to_user_id, is_like=True)
 
+        target_status = await self.users_dao.get_status_of_questionnaire(to_user_id)
+        can_notify_target = bool(target_status)
+
         # Проверяем взаимный лайк
         is_match = await self.likes_dao.check_mutual_like(from_user_id, to_user_id)
 
@@ -91,6 +94,7 @@ class SwipeService:
             matched_user=matched_user,
             current_user=current_user,
             next_profile=next_profile,
+            can_notify_target=can_notify_target,
         )
 
     async def process_dislike(self, from_user_id: int, to_user_id: int) -> DislikeProcessResult:

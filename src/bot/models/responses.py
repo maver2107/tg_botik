@@ -34,6 +34,7 @@ class LikeProcessResult(BaseModel):
     matched_user: Users | None
     current_user: Users
     next_profile: Users | None
+    can_notify_target: bool = True
 
 
 class DislikeProcessResult(BaseModel):

@@ -23,5 +23,5 @@ async def cmd_start(message: Message, state: FSMContext):
         await message.answer("Давай заполним твою анкету. Как тебя зовут?")
     else:
         await message.answer(
-            "Ты уже зарегистрирован!\n\nКоманды:\n/search - начать просмотр анкет\n/matches - посмотреть мэтчи"
+            "Ты уже зарегистрирован!\n\nКоманды:\n/search - начать просмотр анкет\n/my_profile(изменить или выключить анкету)"
         )
