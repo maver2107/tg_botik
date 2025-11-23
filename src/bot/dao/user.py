@@ -19,6 +19,7 @@ class UsersDAO(BaseDAO):
         """
         Обновляет данные пользователя по tg_id
         """
+        # TODO: можно в базовом класса сделать метод update_by_id и использовать его здесь или в других DAO
         async with async_session_maker() as session:
             # Находим пользователя в этой же сессии
 
@@ -44,6 +45,7 @@ class UsersDAO(BaseDAO):
             return user
 
     @classmethod
+    # TODO: можно в базовом класса сделать метод find_one_or_none и использовать его здесь или в других DAO
     async def get_by_tg_id(cls, tg_id: int) -> Users:
         async with async_session_maker() as session:
             query = select(cls.model).where(cls.model.tg_id == tg_id)
@@ -51,6 +53,8 @@ class UsersDAO(BaseDAO):
             return result.scalar_one_or_none()
 
     @classmethod
+    # TODO: Повторение логики, можно один универсальный метод find_one_or_none использовать для всех DAO, просто передавать разные ключи в параметрах
+    # У тебя глобально будет менять просто по id, по tg_id, по username, по name, по age, по city, по interests, по photo_id и так далее...
     async def get_by_id(cls, user_id: int) -> Users:
         async with async_session_maker() as session:
             query = select(cls.model).where(cls.model.id == user_id)
@@ -71,7 +75,7 @@ class UsersDAO(BaseDAO):
                     cls.model.status_of_the_questionnaire,
                 )
             )
-
+            # TODO: Тут идет бизнес логика, она должна быть в сервисе, а не в DAO, тут только запросы к БД
             if rated_user_ids:
                 query = query.where(cls.model.tg_id.not_in(rated_user_ids))
 
@@ -110,6 +114,8 @@ class UsersDAO(BaseDAO):
 
     @classmethod
     async def delete_user(cls, tg_id: int):
+        # TODO: Если пишешь документацию в функциях, пиши везде (если функция сложная) - это важно для других разработчиков и для себя в будущем
+        # Если функция простая - не пиши, подумай только о названии функции и параметрах
         """Удаляет пользователя по tg_id (сработает только при удалении like and maches юзера)"""
         async with async_session_maker() as session:
             query = delete(cls.model).where(cls.model.tg_id == tg_id)

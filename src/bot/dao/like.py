@@ -144,6 +144,26 @@ class MatchesDAO(BaseDAO):
             user1_id, user2_id = user2_id, user1_id
         await cls.add(user1_id=user1_id, user2_id=user2_id)
 
+    # TODO: Думаю можно переделать метод find_all в базовом классе и передавать параметры фильтрации в параметрах
+    # Вот примерная реализация метода find_all в базовом классе
+    # @classmethod
+    # async def find_all(cls, *where_args, **filter_by):
+    #     """
+    #     Универсальный поиск.
+    #     :param where_args: Аргументы для сложных условий (or_, >, <, и т.д.)
+    #     :param filter_by: Аргументы для точного совпадения (id=1, name='test')
+    #     """
+    #     async with async_session_maker() as session:
+    #         query = select(cls.model)
+
+    #         if filter_by:
+    #             query = query.filter_by(**filter_by)
+
+    #         if where_args:
+    #             query = query.where(*where_args)
+
+    #         result = await session.execute(query)
+    #         return result.scalars().all()
     @classmethod
     async def get_user_matches(cls, user_id: int):
         """Получить все мэтчи пользователя"""

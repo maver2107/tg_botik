@@ -67,6 +67,8 @@ async def decline_show_likes(message: Message):
     await message.answer("Хорошо, продолжай просмотр с /search")
 
 
+# TODO: Тут функция слишком много делает бизнес логики, она должна быть в сервисе, а не в handler, все параметры можно перенести в сервис
+# TODO: И можно это все разбить на несколько функций, например process_like_normal_browsing и process_like_viewing_likes
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.LIKE), SwipeStates.normal_browsing)
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.LIKE), SwipeStates.viewing_likes)
 async def process_like(
@@ -121,6 +123,7 @@ async def process_like(
     await swipe_presenter.send_profile(message, next_profile)
 
 
+# TODO: Тут так же как и писал выше, разберись с разделением логики, handler должен только координировать работу, а не делать всю бизнес логику
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.DISLIKE), SwipeStates.normal_browsing)
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.DISLIKE), SwipeStates.viewing_likes)
 async def process_dislike(
