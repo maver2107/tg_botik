@@ -98,7 +98,6 @@ class QuestionnaireProcessService:
         logger.info(f"Завершение опроса для пользователя {user_id}")
 
         form_data = await state.get_data()
-
         # Сохраняем в базу
         await self.users_dao.update_user_data(
             tg_id=user_id,

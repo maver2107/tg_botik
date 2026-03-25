@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     LOG_FILE_PATH: str
     LOG_COMPRESSION: str = "gz"
 
+    API_KEY: str
+    BASE_URL: str
+    MODEL_NAME: str
+
     model_config = SettingsConfigDict(env_file=".env")
 
     @property

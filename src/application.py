@@ -1,18 +1,21 @@
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 
 from src.bot.handlers.questionnaire import questionnaire_router
 from src.bot.handlers.start import start_router
 from src.bot.handlers.swipe import swipe_router
 from src.bot.handlers.user_profile import user_router
+from src.bot.llm_service import get_moderation_service
 from src.bot.presenters import get_swipe_presenter, get_user_profile_presenter
 from src.bot.services import get_questionnaire_service, get_swipe_service, get_user_profile_service
 from src.config import settings
 
 
 def setup_bot() -> Bot:
-    bot = Bot(token=settings.BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+    session = AiohttpSession(proxy="http://127.0.0.1:10808")
+    bot = Bot(token=settings.BOT_TOKEN, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     return bot
 
 
@@ -24,6 +27,7 @@ def setup_dispatcher() -> Dispatcher:
     dp.workflow_data["swipe_presenter"] = get_swipe_presenter()
     dp.workflow_data["user_profile_service"] = get_user_profile_service()
     dp.workflow_data["user_profile_presenter"] = get_user_profile_presenter()
+    dp.workflow_data["moderation_service"] = get_moderation_service()
 
     dp.include_router(start_router)
     dp.include_router(questionnaire_router)
