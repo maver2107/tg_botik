@@ -4,11 +4,14 @@ from enum import Enum
 class LikeStatus(Enum):
     LIKE = "like"
     DISLIKE = "dislike"
+    REPORT = "report"
 
     @classmethod
     def get_display_name(cls, status: "LikeStatus") -> str:
         if status == cls.LIKE:
             return "❤️"
+        if status == cls.REPORT:
+            return "🚩"
         else:
             return "👎"
 

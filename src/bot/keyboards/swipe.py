@@ -12,6 +12,7 @@ def get_swipe_keyboard() -> ReplyKeyboardMarkup:
             [
                 KeyboardButton(text=LikeStatus.get_display_name(LikeStatus.LIKE)),
                 KeyboardButton(text=LikeStatus.get_display_name(LikeStatus.DISLIKE)),
+                KeyboardButton(text=LikeStatus.get_display_name(LikeStatus.REPORT)),
             ]
         ],
         resize_keyboard=True,

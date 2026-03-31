@@ -1,5 +1,6 @@
 # src/bot/services/__init__.py
 from src.bot.dao.like import LikesDAO, MatchesDAO
+from src.bot.dao.report import ReportsDAO
 from src.bot.dao.user import UsersDAO
 from src.bot.services.questionnaire import QuestionnaireProcessService
 from src.bot.services.swipe import SwipeService
@@ -13,7 +14,7 @@ def get_questionnaire_service() -> QuestionnaireProcessService:
 
 def get_swipe_service() -> SwipeService:
     """Фабрика для создания сервиса свайпов"""
-    return SwipeService(likes_dao=LikesDAO, matches_dao=MatchesDAO, users_dao=UsersDAO)
+    return SwipeService(likes_dao=LikesDAO, matches_dao=MatchesDAO, users_dao=UsersDAO, reports_dao=ReportsDAO)
 
 
 def get_user_profile_service() -> UserProfileService:

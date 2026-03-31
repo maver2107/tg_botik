@@ -10,6 +10,7 @@ from src.bot.models.like import (
     Likes,  # noqa: F401
     Matches,  # noqa: F401
 )
+from src.bot.models.report import Reports  # noqa: F401
 from src.bot.models.user import Users  # noqa: F401
 from src.core.database import DATABASE_URL, Base
 

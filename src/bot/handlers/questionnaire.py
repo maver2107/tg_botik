@@ -109,9 +109,6 @@ async def process_interests(
     if not result:
         await message.answer("❌ Введите свои интересы без нецензурной лексики и других непристойных выражений")
         return
-    else:
-        await message.answer("❌ Произошла ошибка при обработке текста")
-        return
 
 
 # Обработчик фото

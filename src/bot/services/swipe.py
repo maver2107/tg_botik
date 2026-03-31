@@ -3,6 +3,7 @@
 import logging
 
 from src.bot.dao.like import LikesDAO, MatchesDAO
+from src.bot.dao.report import ReportsDAO
 from src.bot.dao.user import UsersDAO
 from src.bot.models.responses import DislikeProcessResult, LikeProcessResult, MatchWithDetails
 from src.bot.models.user import Users
@@ -11,10 +12,11 @@ logger = logging.getLogger(__name__)
 
 
 class SwipeService:
-    def __init__(self, likes_dao: LikesDAO, matches_dao: MatchesDAO, users_dao: UsersDAO):
+    def __init__(self, likes_dao: LikesDAO, matches_dao: MatchesDAO, users_dao: UsersDAO, reports_dao: ReportsDAO):
         self.likes_dao = likes_dao
         self.matches_dao = matches_dao
         self.users_dao = users_dao
+        self.reports_dao = reports_dao
 
     async def get_next_profile(self, user_id: int) -> Users | None:
         # 1. Получаем текущего пользователя
@@ -110,6 +112,12 @@ class SwipeService:
         next_profile = await self.get_next_profile(from_user_id)
 
         return DislikeProcessResult(next_profile=next_profile)
+
+    async def process_report(self, from_user_id: int, to_user_id: int, comment: str):
+        """Обработка жалобы"""
+        logger.info(f"Жалоба от {from_user_id} к {to_user_id}")
+        await self.reports_dao.add_report(reporter_user_id=from_user_id, target_user_id=to_user_id, comment=comment)
+        return
 
     async def get_user_matches_with_details(self, user_id: int) -> list[MatchWithDetails]:
         """Получить мэтчи с данными пользователей"""

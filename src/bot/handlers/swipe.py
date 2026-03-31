@@ -47,6 +47,37 @@ async def continue_search_after_likes(
     await start_search(message, swipe_service, swipe_presenter, state)
 
 
+@swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.REPORT))
+async def initiate_report_profile(
+    message: Message,
+    state: FSMContext,
+):
+    """Обработка жалобы"""
+    await state.set_state(SwipeStates.reporting)
+    await message.answer("Пожалуйста, оставьте комментарий к жалобе")
+
+
+@swipe_router.message(SwipeStates.reporting)
+async def report_profile(
+    message: Message, state: FSMContext, swipe_service: SwipeService, swipe_presenter: SwipePresenter
+):
+    """Обработка жалобы"""
+    from_user_id = message.from_user.id
+    data = await state.get_data()
+    to_user_id = data.get("current_profile_id")
+
+    await state.update_data(report_comment=message.text)
+    data = await state.get_data()
+    report_comment = data.get("report_comment")
+    if not report_comment:
+        await message.answer("Пожалуйста, оставьте комментарий к жалобе")
+        return
+    await swipe_service.process_report(from_user_id, to_user_id, report_comment)
+    await state.set_state(SwipeStates.normal_browsing)
+    await message.answer("Жалоба отправлена")
+    await process_dislike(message, swipe_service, swipe_presenter, state)
+
+
 @swipe_router.message(F.text == ApplicationStatus.show_application(ApplicationStatus.SHOW))
 async def show_who_liked_me(
     message: Message, swipe_service: SwipeService, swipe_presenter: SwipePresenter, state: FSMContext

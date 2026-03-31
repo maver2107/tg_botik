@@ -7,3 +7,4 @@ class SwipeStates(StatesGroup):
 
     normal_browsing = State()  # Обычный просмотр анкет
     viewing_likes = State()  # Просмотр тех, кто лайкнул
+    reporting = State()  # Состояние для отправки жалобы

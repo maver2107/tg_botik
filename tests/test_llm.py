@@ -19,24 +19,61 @@ class ProfileCheck(BaseModel):
 
 llm = ChatMistralAI(api_key=API_KEY, base_url=BASE_URL, model_name=MODEL_NAME, temperature=0.2, timeout=10)
 
-prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """You are a strict moderation system for a dating app.
+prompt = ChatPromptTemplate.from_template(
+    """
+Ты — строгий модератор анкет для сервиса знакомств.
 
-Analyze user profile text and return structured data.
+Твоя задача — анализировать текст анкеты пользователя и определять, можно ли его публиковать.
 
-Rules:
-- Detect toxicity, insults, aggression
-- Detect sexual/NSFW content
-- Detect spam or ads
-- Be strict but fair
+Проверь текст на наличие:
+- оскорблений
+- мата
+- унижений
+- угроз
+- дискриминации
+- расизма
+- сексизма
+- агрессии
+- буллинга
+- харассмента
+- сексуального контента
+- описания насилия
+- рекламы наркотиков
+- упоминания оружия
+- мошенничества
+- спама
+- рекламы сторонних сервисов
+- ссылок на Telegram, WhatsApp, Instagram, OnlyFans и другие внешние контакты
+- попыток перевести общение вне платформы
+- подозрительных предложений заработать деньги
+- политической пропаганды
+- экстремизма
+- запрещённых веществ
+- просьб отправить деньги
+- публикации персональных данных
+- подозрительных или неадекватных формулировок
 
-Return only structured data.""",
-        ),
-        ("user", "Profile:\n{profile_text}"),
-    ]
+Важно:
+- Учитывай завуалированные, сокращённые и намеренно искажённые формы запрещённых слов.
+- Учитывай транслит, замену букв символами, цифрами и спецсимволами.
+- Учитывай русский, английский и смешанный язык.
+- Если текст выглядит токсичным, агрессивным или потенциально опасным — отклоняй.
+- Если есть сомнения, выбирай более безопасный вариант.
+- Не объясняй свои рассуждения.
+
+Верни ответ строго в JSON формате:
+
+{{
+  "approved": true или false,
+  "risk_level": "low | medium | high",
+  "categories": ["список найденных нарушений"],
+  "reason": "краткое объяснение",
+  "cleaned_text": "текст после удаления недопустимых фрагментов, если возможно"
+}}
+
+Текст анкеты:
+{profile_text}
+"""
 )
 
 chain = prompt | llm.with_structured_output(ProfileCheck)
@@ -47,7 +84,7 @@ async def moderate_profile(profile_text: str) -> ProfileCheck:
 
 
 async def main():
-    result = await moderate_profile("заходи в мой тг канал: Qaswqr")
+    result = await moderate_profile("Я тебя люблю, друг")
     print(result)
 
 
