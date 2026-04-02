@@ -1,6 +1,7 @@
 import logging
 
 from src.bot.dao.like import LikesDAO, MatchesDAO
+from src.bot.dao.report import ReportsDAO
 from src.bot.dao.user import UsersDAO
 from src.bot.models.user import Users
 
@@ -8,10 +9,11 @@ logger = logging.getLogger(__name__)
 
 
 class UserProfileService:
-    def __init__(self, likes_dao: LikesDAO, matches_dao: MatchesDAO, users_dao: UsersDAO):
+    def __init__(self, likes_dao: LikesDAO, matches_dao: MatchesDAO, users_dao: UsersDAO, reports_dao: ReportsDAO):
         self.likes_dao = likes_dao
         self.matches_dao = matches_dao
         self.users_dao = users_dao
+        self.reports_dao = reports_dao
 
     async def get_user_profile(self, user_id: int) -> Users:
         # 1. Получаем текущего пользователя
@@ -28,4 +30,5 @@ class UserProfileService:
     async def delete_user(self, tg_id: int) -> Users:
         await self.likes_dao.delete_likes_by_user(tg_id)
         await self.matches_dao.delete_matches_by_user(tg_id)
+        await self.reports_dao.delete_reports_by_user(tg_id)
         await self.users_dao.delete_user(tg_id)

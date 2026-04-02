@@ -19,4 +19,4 @@ def get_swipe_service() -> SwipeService:
 
 def get_user_profile_service() -> UserProfileService:
     """Фабрика для создания сервиса свайпов"""
-    return UserProfileService(likes_dao=LikesDAO, matches_dao=MatchesDAO, users_dao=UsersDAO)
+    return UserProfileService(likes_dao=LikesDAO, matches_dao=MatchesDAO, users_dao=UsersDAO, reports_dao=ReportsDAO)
