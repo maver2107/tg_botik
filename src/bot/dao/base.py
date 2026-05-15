@@ -1,4 +1,4 @@
-from sqlalchemy import delete, insert, select  # TODO: добавить update
+from sqlalchemy import delete, func, insert, select
 
 from src.core.database import async_session_maker
 
@@ -42,6 +42,20 @@ class BaseDAO:
             return result.scalars().all()
 
     @classmethod
+    async def get_paginated(cls, limit: int, offset: int, **filter_by):
+        async with async_session_maker() as session:
+            query = select(cls.model).filter_by(**filter_by).order_by(cls.model.id).limit(limit).offset(offset)
+            result = await session.execute(query)
+            return result.scalars().all()
+
+    @classmethod
+    async def count(cls, **filter_by) -> int:
+        async with async_session_maker() as session:
+            query = select(func.count()).select_from(cls.model).filter_by(**filter_by)
+            result = await session.execute(query)
+            return result.scalar() or 0
+
+    @classmethod
     async def add(cls, **data):
         async with async_session_maker() as session:
             query = insert(cls.model).values(**data)
@@ -54,6 +68,21 @@ class BaseDAO:
             query = delete(cls.model).where(cls.model.id == id)
             await session.execute(query)
             await session.commit()
+
+    @classmethod
+    async def update(cls, id: int, **update_data):
+        async with async_session_maker() as session:
+            query = select(cls.model).where(cls.model.id == id)
+            result = await session.execute(query)
+            instance = result.scalar_one_or_none()
+            if not instance:
+                return None
+            for key, value in update_data.items():
+                if value is not None and hasattr(instance, key):
+                    setattr(instance, key, value)
+            await session.commit()
+            await session.refresh(instance)
+            return instance
 
     @classmethod
     async def exists(cls, **filter_by) -> bool:

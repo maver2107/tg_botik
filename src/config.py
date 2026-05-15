@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     DB_PASS: str
     DB_NAME: str
     BOT_TOKEN: str
+    ADMIN_IDS: list[int] = []
 
     LOG_LEVEL: str
     LOG_FORMAT: str

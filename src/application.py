@@ -3,13 +3,14 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 
+from src.bot.handlers.admin import admin_router
 from src.bot.handlers.questionnaire import questionnaire_router
 from src.bot.handlers.start import start_router
 from src.bot.handlers.swipe import swipe_router
 from src.bot.handlers.user_profile import user_router
 from src.bot.llm_service import get_moderation_service
 from src.bot.presenters import get_swipe_presenter, get_user_profile_presenter
-from src.bot.services import get_questionnaire_service, get_swipe_service, get_user_profile_service
+from src.bot.services import get_admin_service, get_questionnaire_service, get_swipe_service, get_user_profile_service
 from src.config import settings
 
 
@@ -28,11 +29,14 @@ def setup_dispatcher() -> Dispatcher:
     dp.workflow_data["user_profile_service"] = get_user_profile_service()
     dp.workflow_data["user_profile_presenter"] = get_user_profile_presenter()
     dp.workflow_data["moderation_service"] = get_moderation_service()
+    dp.workflow_data["admin_service"] = get_admin_service()
+    dp.workflow_data["admin_ids"] = settings.ADMIN_IDS
 
     dp.include_router(start_router)
     dp.include_router(questionnaire_router)
     dp.include_router(swipe_router)
     dp.include_router(user_router)
+    dp.include_router(admin_router)
     return dp
 
 
