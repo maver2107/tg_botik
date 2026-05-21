@@ -26,6 +26,4 @@ class UserProfileService:
         await self.users_dao.set_status_questionnaire_false(tg_id)
 
     async def delete_user(self, tg_id: int) -> Users:
-        await self.likes_dao.delete_likes_by_user(tg_id)
-        await self.matches_dao.delete_matches_by_user(tg_id)
-        await self.users_dao.delete_user(tg_id)
+        await self.users_dao.delete_user_cascade(tg_id)

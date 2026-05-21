@@ -6,8 +6,9 @@ def admin_main_menu() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(
         InlineKeyboardButton(text="👥 Пользователи", callback_data="admin:users"),
-        InlineKeyboardButton(text="🚨 Жалобы", callback_data="admin:reports"),
+        InlineKeyboardButton(text="🚨 Жалобы", callback_data="admin:reports:new"),
     )
+    builder.row(InlineKeyboardButton(text="✅ Рассмотренные", callback_data="admin:reports:reviewed"))
     builder.row(InlineKeyboardButton(text="📢 Рассылка", callback_data="admin:broadcast"))
     builder.row(InlineKeyboardButton(text="❌ Выйти", callback_data="admin:exit"))
     return builder.as_markup()
@@ -54,18 +55,18 @@ def ban_confirm_keyboard(tg_id: int) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def reports_list_keyboard(reports: list, page: int, total_pages: int) -> InlineKeyboardMarkup:
+def reports_list_keyboard(reports: list, page: int, total_pages: int, reviewed: bool) -> InlineKeyboardMarkup:
+    prefix = "admin:reviewed_reports_page" if reviewed else "admin:new_reports_page"
     builder = InlineKeyboardBuilder()
     for r in reports:
-        reviewed = "✅" if r.reviewed_at else "🆕"
-        label = f"{reviewed} Жалоба #{r.id} на tg_id={r.target_user_id}"
+        label = f"Жалоба #{r.id} на tg_id={r.target_user_id}"
         builder.row(InlineKeyboardButton(text=label, callback_data=f"admin:report:{r.id}"))
     nav = []
     if page > 1:
-        nav.append(InlineKeyboardButton(text="◀️", callback_data=f"admin:reports_page:{page - 1}"))
+        nav.append(InlineKeyboardButton(text="◀️", callback_data=f"{prefix}:{page - 1}"))
     nav.append(InlineKeyboardButton(text=f"{page}/{total_pages}", callback_data="admin:noop"))
     if page < total_pages:
-        nav.append(InlineKeyboardButton(text="▶️", callback_data=f"admin:reports_page:{page + 1}"))
+        nav.append(InlineKeyboardButton(text="▶️", callback_data=f"{prefix}:{page + 1}"))
     builder.row(*nav)
     builder.row(InlineKeyboardButton(text="◀️ Назад", callback_data="admin:back_to_main"))
     return builder.as_markup()
@@ -75,7 +76,7 @@ def report_detail_keyboard(report_id: int, target_tg_id: int) -> InlineKeyboardM
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="🔨 Забанить юзера", callback_data=f"admin:ban:{target_tg_id}"))
     builder.row(InlineKeyboardButton(text="✅ Отклонить жалобу", callback_data=f"admin:dismiss_report:{report_id}"))
-    builder.row(InlineKeyboardButton(text="◀️ Назад к списку", callback_data="admin:reports"))
+    builder.row(InlineKeyboardButton(text="◀️ Назад к списку", callback_data="admin:reports:new"))
     return builder.as_markup()
 
 

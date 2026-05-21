@@ -1,7 +1,7 @@
 import logging
 from typing import List, Optional
 
-from sqlalchemy import and_, delete, select
+from sqlalchemy import and_, delete, or_, select
 
 from src.bot.dao.base import BaseDAO
 from src.bot.enum.gender import Gender
@@ -73,6 +73,7 @@ class UsersDAO(BaseDAO):
                     cls.model.age.isnot(None),
                     cls.model.city.isnot(None),
                     cls.model.status_of_the_questionnaire,
+                    cls.model.is_banned == False,
                 )
             )
             # TODO: Тут идет бизнес логика, она должна быть в сервисе, а не в DAO, тут только запросы к БД
@@ -92,7 +93,9 @@ class UsersDAO(BaseDAO):
     @classmethod
     async def get_profiles_by_ids(cls, not_rated_yet):
         async with async_session_maker() as session:
-            users_query = select(Users).where(Users.tg_id.in_(not_rated_yet))
+            users_query = select(Users).where(
+                Users.tg_id.in_(not_rated_yet), Users.is_banned == False
+            )
             users_result = await session.execute(users_query)
             return users_result.scalars().all()
 
@@ -114,10 +117,26 @@ class UsersDAO(BaseDAO):
 
     @classmethod
     async def delete_user(cls, tg_id: int):
-        # TODO: Если пишешь документацию в функциях, пиши везде (если функция сложная) - это важно для других разработчиков и для себя в будущем
-        # Если функция простая - не пиши, подумай только о названии функции и параметрах
         """Удаляет пользователя по tg_id (сработает только при удалении like and maches юзера)"""
         async with async_session_maker() as session:
             query = delete(cls.model).where(cls.model.tg_id == tg_id)
             await session.execute(query)
+            await session.commit()
+
+    @classmethod
+    async def delete_user_cascade(cls, tg_id: int):
+        from src.bot.models.like import Likes, Matches
+
+        async with async_session_maker() as session:
+            await session.execute(
+                delete(Likes).where(
+                    or_(Likes.from_user_id == tg_id, Likes.to_user_id == tg_id)
+                )
+            )
+            await session.execute(
+                delete(Matches).where(
+                    or_(Matches.user1_id == tg_id, Matches.user2_id == tg_id)
+                )
+            )
+            await session.execute(delete(cls.model).where(cls.model.tg_id == tg_id))
             await session.commit()

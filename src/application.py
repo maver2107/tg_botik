@@ -8,14 +8,13 @@ from src.bot.handlers.questionnaire import questionnaire_router
 from src.bot.handlers.start import start_router
 from src.bot.handlers.swipe import swipe_router
 from src.bot.handlers.user_profile import user_router
-from src.bot.llm_service import get_moderation_service
 from src.bot.presenters import get_swipe_presenter, get_user_profile_presenter
 from src.bot.services import get_admin_service, get_questionnaire_service, get_swipe_service, get_user_profile_service
 from src.config import settings
 
 
 def setup_bot() -> Bot:
-    session = AiohttpSession(proxy="http://127.0.0.1:10808")
+    session = AiohttpSession(proxy=settings.PROXY_URL or None)
     bot = Bot(token=settings.BOT_TOKEN, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     return bot
 
@@ -28,7 +27,6 @@ def setup_dispatcher() -> Dispatcher:
     dp.workflow_data["swipe_presenter"] = get_swipe_presenter()
     dp.workflow_data["user_profile_service"] = get_user_profile_service()
     dp.workflow_data["user_profile_presenter"] = get_user_profile_presenter()
-    dp.workflow_data["moderation_service"] = get_moderation_service()
     dp.workflow_data["admin_service"] = get_admin_service()
     dp.workflow_data["admin_ids"] = settings.ADMIN_IDS
 

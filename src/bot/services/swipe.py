@@ -19,19 +19,20 @@ class SwipeService:
         self.reports_dao = reports_dao
 
     async def get_next_profile(self, user_id: int) -> Users | None:
-        # 1. Получаем текущего пользователя
-        status = await self.users_dao.get_status_of_questionnaire(user_id)
-        if status == False:
-            await self.users_dao.set_status_questionnaire_true(user_id)
         current_user = await self.users_dao.get_by_tg_id(user_id)
         if not current_user:
             logger.error(f"Пользователь {user_id} не найден")
             return None
 
-        # 2. Получаем ID всех уже оценённых пользователей (лайк или дизлайк)
+        if current_user.is_banned:
+            return None
+
+        status = await self.users_dao.get_status_of_questionnaire(user_id)
+        if status == False:
+            await self.users_dao.set_status_questionnaire_true(user_id)
+
         rated_user_ids = await self.likes_dao.get_rated_user_ids(user_id)
 
-        # 3. Получаем следующую анкету
         next_profile = await self.users_dao.get_next_profile(
             user_id=user_id,
             rated_user_ids=rated_user_ids,
@@ -70,25 +71,21 @@ class SwipeService:
     async def process_like(self, from_user_id: int, to_user_id: int) -> LikeProcessResult:
         logger.info(f"Лайк от {from_user_id} к {to_user_id}")
 
-        # Добавляем лайк
         await self.likes_dao.add_like(from_user_id=from_user_id, to_user_id=to_user_id, is_like=True)
 
         target_status = await self.users_dao.get_status_of_questionnaire(to_user_id)
         can_notify_target = bool(target_status)
 
-        # Проверяем взаимный лайк
         is_match = await self.likes_dao.check_mutual_like(from_user_id, to_user_id)
 
         matched_user = None
         current_user = await self.users_dao.get_by_tg_id(from_user_id)
         if is_match:
-            # Создаём мэтч
             await self.matches_dao.create_match(from_user_id, to_user_id)
             logger.info(f"🔥 MATCH! {from_user_id} и {to_user_id}")
 
             matched_user = await self.users_dao.get_by_tg_id(to_user_id)
 
-        # Получаем следующую анкету
         next_profile = await self.get_next_profile(from_user_id)
 
         return LikeProcessResult(
@@ -99,25 +96,45 @@ class SwipeService:
             can_notify_target=can_notify_target,
         )
 
+    async def process_like_and_get_next(
+        self, from_user_id: int, to_user_id: int, from_viewing_likes: bool
+    ) -> tuple[LikeProcessResult, Users | None]:
+        result = await self.process_like(from_user_id, to_user_id)
+        if from_viewing_likes:
+            profiles = await self.get_profiles_who_liked_me(from_user_id)
+            next_profile = profiles[0] if profiles else None
+        else:
+            next_profile = result.next_profile
+        return result, next_profile
+
     async def process_dislike(self, from_user_id: int, to_user_id: int) -> DislikeProcessResult:
-        """
-        Обработка дизлайка
-        """
         logger.info(f"Дизлайк от {from_user_id} к {to_user_id}")
 
-        # Добавляем дизлайк
         await self.likes_dao.add_like(from_user_id=from_user_id, to_user_id=to_user_id, is_like=False)
 
-        # Получаем следующую анкету
         next_profile = await self.get_next_profile(from_user_id)
 
         return DislikeProcessResult(next_profile=next_profile)
 
-    async def process_report(self, from_user_id: int, to_user_id: int, comment: str):
-        """Обработка жалобы"""
+    async def process_dislike_and_get_next(
+        self, from_user_id: int, to_user_id: int, from_viewing_likes: bool
+    ) -> tuple[DislikeProcessResult, Users | None]:
+        result = await self.process_dislike(from_user_id, to_user_id)
+        if from_viewing_likes:
+            profiles = await self.get_profiles_who_liked_me(from_user_id)
+            next_profile = profiles[0] if profiles else None
+        else:
+            next_profile = result.next_profile
+        return result, next_profile
+
+    async def process_report(self, from_user_id: int, to_user_id: int, comment: str) -> bool:
+        """Обработка жалобы. Возвращает True если жалоба создана, False если уже существует."""
         logger.info(f"Жалоба от {from_user_id} к {to_user_id}")
+        if await self.reports_dao.report_exists(from_user_id, to_user_id):
+            logger.info(f"Дубликат жалобы от {from_user_id} к {to_user_id}")
+            return False
         await self.reports_dao.add_report(reporter_user_id=from_user_id, target_user_id=to_user_id, comment=comment)
-        return
+        return True
 
     async def get_user_matches_with_details(self, user_id: int) -> list[MatchWithDetails]:
         """Получить мэтчи с данными пользователей"""

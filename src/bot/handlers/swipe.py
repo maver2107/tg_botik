@@ -1,7 +1,9 @@
+import time
+
 from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message  # Добавлен импорт
+from aiogram.types import Message
 
 from src.bot.enum.like import ApplicationStatus, LikeStatus
 from src.bot.enum.user_profile import UserProfile
@@ -72,9 +74,12 @@ async def report_profile(
     if not report_comment:
         await message.answer("Пожалуйста, оставьте комментарий к жалобе")
         return
-    await swipe_service.process_report(from_user_id, to_user_id, report_comment)
+    created = await swipe_service.process_report(from_user_id, to_user_id, report_comment)
     await state.set_state(SwipeStates.normal_browsing)
-    await message.answer("Жалоба отправлена")
+    if created:
+        await message.answer("Жалоба отправлена")
+    else:
+        await message.answer("Вы уже жаловались на этого пользователя.")
     await process_dislike(message, swipe_service, swipe_presenter, state)
 
 
@@ -110,63 +115,48 @@ async def decline_show_likes(message: Message):
     await message.answer("Хорошо, продолжай просмотр с /search", reply_markup=get_search_only_keyboard())
 
 
-# TODO: Тут функция слишком много делает бизнес логики, она должна быть в сервисе, а не в handler, все параметры можно перенести в сервис
-# TODO: И можно это все разбить на несколько функций, например process_like_normal_browsing и process_like_viewing_likes
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.LIKE), SwipeStates.normal_browsing)
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.LIKE), SwipeStates.viewing_likes)
 async def process_like(
     message: Message, swipe_service: SwipeService, state: FSMContext, swipe_presenter: SwipePresenter, bot: Bot
 ):
-    """Обработка нажатия на кнопку лайк"""
-    from_user_id = message.from_user.id
-
-    # Получаем ID текущего профиля из состояния
     data = await state.get_data()
+    now = time.monotonic()
+    if now - data.get("last_action_ts", 0) < 0.5:
+        return
+
+    from_user_id = message.from_user.id
     to_user_id = data.get("current_profile_id")
 
     if not to_user_id:
         await message.answer("Ошибка: профиль не найден. Начни просмотр заново с /search")
         return
 
-    # Получаем текущее состояние
-    current_state = await state.get_state()
+    await state.update_data(last_action_ts=now)
 
-    # Обрабатываем лайк
-    result = await swipe_service.process_like(from_user_id, to_user_id)
+    current_state = await state.get_state()
+    from_viewing_likes = current_state == SwipeStates.viewing_likes
+
+    result, next_profile = await swipe_service.process_like_and_get_next(
+        from_user_id, to_user_id, from_viewing_likes
+    )
 
     if result.is_match:
-        # Отправляем сообщение о мэтче
-        match_text = swipe_presenter.format_match_message(result.matched_user)
-        await message.answer(match_text)
-
-        # Уведомляем второго пользователя
+        await message.answer(swipe_presenter.format_match_message(result.matched_user))
         await bot.send_message(to_user_id, swipe_presenter.format_match_message(result.current_user))
-    else:
-        if result.can_notify_target:
-            # Уведомление о лайке
-            await bot.send_message(
-                to_user_id, swipe_presenter.format_like_notification(), reply_markup=get_show_likes_keyboard()
-            )
+    elif result.can_notify_target:
+        await bot.send_message(
+            to_user_id, swipe_presenter.format_like_notification(), reply_markup=get_show_likes_keyboard()
+        )
 
-    # Определяем следующую анкету
-    if current_state == SwipeStates.viewing_likes:
-        profiles = await swipe_service.get_profiles_who_liked_me(from_user_id)
-
-        if not profiles:
-            # Лайкнувшие закончились
+    if not next_profile:
+        if from_viewing_likes:
             await message.answer(
                 "Анкеты тех, кто тебя лайкнул, закончились.\nХочешь продолжить просмотр новых анкет?",
                 reply_markup=get_search_only_keyboard(),
             )
-            await state.clear()
-            return
-
-        next_profile = profiles[0]
-    else:
-        next_profile = result.next_profile
-
-    if not next_profile:
-        await swipe_presenter.send_no_profiles_message(message)
+        else:
+            await swipe_presenter.send_no_profiles_message(message)
         await state.clear()
         return
 
@@ -174,52 +164,42 @@ async def process_like(
     await swipe_presenter.send_profile(message, next_profile)
 
 
-# TODO: Тут так же как и писал выше, разберись с разделением логики, handler должен только координировать работу, а не делать всю бизнес логику
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.DISLIKE), SwipeStates.normal_browsing)
 @swipe_router.message(F.text == LikeStatus.get_display_name(LikeStatus.DISLIKE), SwipeStates.viewing_likes)
 async def process_dislike(
     message: Message, swipe_service: SwipeService, swipe_presenter: SwipePresenter, state: FSMContext
 ):
-    """Обработка нажатия на кнопку дизлайк"""
-    from_user_id = message.from_user.id
-
-    # Получаем ID текущего профиля из состояния
     data = await state.get_data()
+    now = time.monotonic()
+    if now - data.get("last_action_ts", 0) < 0.5:
+        return
+
+    from_user_id = message.from_user.id
     to_user_id = data.get("current_profile_id")
 
     if not to_user_id:
         await message.answer("Ошибка: профиль не найден. Начни просмотр заново с /search")
         return
 
-    # Получаем текущее состояние
+    await state.update_data(last_action_ts=now)
+
     current_state = await state.get_state()
+    from_viewing_likes = current_state == SwipeStates.viewing_likes
 
-    # Обрабатываем дизлайк
-    result = await swipe_service.process_dislike(from_user_id, to_user_id)
+    result, next_profile = await swipe_service.process_dislike_and_get_next(
+        from_user_id, to_user_id, from_viewing_likes
+    )
 
-    # Определяем следующую анкету в зависимости от состояния
-    if current_state == SwipeStates.viewing_likes:
-        profiles = await swipe_service.get_profiles_who_liked_me(from_user_id)
-
-        if not profiles:
+    if not next_profile:
+        if from_viewing_likes:
             await message.answer(
                 "Анкеты тех, кто тебя лайкнул, закончились.\nХочешь продолжить просмотр новых анкет?",
                 reply_markup=get_search_only_keyboard(),
             )
-            await state.clear()
-            return
-
-        next_profile = profiles[0]
-    else:
-        next_profile = result.next_profile
-
-    if not next_profile:
-        await swipe_presenter.send_no_profiles_message(message)
+        else:
+            await swipe_presenter.send_no_profiles_message(message)
         await state.clear()
         return
 
-    # Сохраняем ID следующего профиля
     await state.update_data(current_profile_id=next_profile.tg_id)
-
-    # Отправляем следующую анкету
     await swipe_presenter.send_profile(message, next_profile)

@@ -8,7 +8,6 @@ from src.bot.keyboards.questionnaire import (
     get_gender_keyboard,
     remove_keyboard,
 )
-from src.bot.llm_service import ModerationService
 from src.bot.services.questionnaire import QuestionnaireProcessService
 from src.bot.states.form_states import FormStates
 
@@ -92,23 +91,12 @@ async def process_interests(
     message: Message,
     state: FSMContext,
     questionnaire_service: QuestionnaireProcessService,
-    moderation_service: ModerationService,
 ):
-    """Обработка интересов"""
     if message.text is None:
-        await message.answer("❌ Пожалуйста, введите интереса")
+        await message.answer("❌ Пожалуйста, введите интересы")
         return
-    result = await moderation_service.valid_text(message.text)
-    print(result)
-    if result is None:
-        await message.answer("❌ Произошла ошибка при обработке текста")
-        return
-    if result:
-        response = await questionnaire_service.process_interests(interests=message.text, state=state)
-        await message.answer(response)
-    if not result:
-        await message.answer("❌ Введите свои интересы без нецензурной лексики и других непристойных выражений")
-        return
+    response = await questionnaire_service.process_interests(interests=message.text, state=state)
+    await message.answer(response)
 
 
 # Обработчик фото

@@ -1,5 +1,4 @@
-# src/likes/models.py
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column
@@ -15,8 +14,10 @@ class Likes(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     from_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.tg_id"), nullable=False)
     to_user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.tg_id"), nullable=False)
-    is_like: Mapped[bool] = mapped_column(Boolean, nullable=True)  # True = like, False = dislike
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    is_like: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
 
 
 class Matches(Base):
@@ -27,4 +28,6 @@ class Matches(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user1_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.tg_id"), nullable=False)
     user2_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.tg_id"), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )

@@ -14,10 +14,12 @@ class SwipePresenter:
 
     @staticmethod
     async def send_profile(message: Message, profile: Users):
-        """Отправка анкеты пользователю"""
         profile_text = SwipePresenter.format_profile(profile)
         keyboard = get_swipe_keyboard()
-        await message.answer_photo(photo=profile.photo_id, caption=profile_text, reply_markup=keyboard)
+        if profile.photo_id:
+            await message.answer_photo(photo=profile.photo_id, caption=profile_text, reply_markup=keyboard)
+        else:
+            await message.answer(profile_text, reply_markup=keyboard)
 
     @staticmethod
     def format_match_message(matched_user: Users) -> str:

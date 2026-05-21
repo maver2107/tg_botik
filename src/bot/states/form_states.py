@@ -11,12 +11,5 @@ class FormStates(StatesGroup):
     waiting_for_photo = State()
 
 
-class DatingStates(StatesGroup):
-    viewing_profiles = State()
-    viewing_matches = State()
-
-
 class UserProfileStates(StatesGroup):
-    main_menu = State()  # Главное меню профиля с кнопками
-    editing_profile = State()  # Состояние редактирования анкеты
-    disabling_profile = State()  # Состояние выключения профиля/подтверждение
+    main_menu = State()

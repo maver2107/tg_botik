@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     DB_NAME: str
     BOT_TOKEN: str
     ADMIN_IDS: list[int] = []
+    PROXY_URL: str | None = None
 
     LOG_LEVEL: str
     LOG_FORMAT: str

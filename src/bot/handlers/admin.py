@@ -31,6 +31,7 @@ async def cmd_admin(message: Message, state: FSMContext, admin_ids: list[int], a
 @admin_router.callback_query(F.data == "admin:back_to_main", AdminStates.main)
 @admin_router.callback_query(F.data == "admin:back_to_main")
 async def back_to_main(call: CallbackQuery, state: FSMContext):
+    await _cleanup_profile_message(state, call.message.chat.id, call.message.bot)  # type: ignore
     await state.set_state(AdminStates.main)
     await call.message.edit_text("🔧 Админ-панель", reply_markup=kb.admin_main_menu())  # type: ignore
 
@@ -105,8 +106,13 @@ async def ban_confirm(call: CallbackQuery, state: FSMContext):
 @admin_router.callback_query(F.data.startswith("admin:ban:"), AdminStates.report_detail)
 async def ban_user(call: CallbackQuery, state: FSMContext, admin_service: AdminService):
     tg_id = int(call.data.split(":")[-1])
-    await admin_service.ban_user(tg_id)
+    current_state = await state.get_state()
+    data = await state.get_data()
+    report_id = data.get("viewed_report_id") if current_state == AdminStates.report_detail else None
+    await admin_service.ban_user(tg_id, report_id=report_id)
     await call.answer(f"Пользователь {tg_id} забанен.", show_alert=True)
+    if current_state == AdminStates.report_detail:
+        await _cleanup_profile_message(state, call.message.chat.id, call.message.bot)  # type: ignore
     user = await admin_service.get_user_detail(tg_id)
     await state.set_state(AdminStates.user_detail)
     await state.update_data(viewed_tg_id=tg_id)
@@ -137,55 +143,110 @@ async def unban_user(call: CallbackQuery, state: FSMContext, admin_service: Admi
 
 # ---------- reports ----------
 
-@admin_router.callback_query(F.data == "admin:reports")
-async def show_reports(call: CallbackQuery, state: FSMContext, admin_service: AdminService):
+async def _cleanup_profile_message(state: FSMContext, chat_id: int, bot):
+    data = await state.get_data()
+    profile_msg_id = data.get("profile_message_id")
+    if profile_msg_id:
+        try:
+            await bot.delete_message(chat_id=chat_id, message_id=profile_msg_id)
+        except Exception:
+            pass
+        await state.update_data(profile_message_id=None)
+
+
+@admin_router.callback_query(F.data == "admin:reports:new")
+async def show_new_reports(call: CallbackQuery, state: FSMContext, admin_service: AdminService):
+    await _cleanup_profile_message(state, call.message.chat.id, call.message.bot)  # type: ignore
     await state.set_state(AdminStates.reports_menu)
-    reports, page, total_pages = await admin_service.get_reports_page(1)
+    reports, page, total_pages = await admin_service.get_reports_page(1, reviewed=False)
     if not reports:
-        await call.message.edit_text("Нет жалоб.", reply_markup=kb.back_to_main_button())  # type: ignore
+        await call.message.edit_text("Новых жалоб нет.", reply_markup=kb.back_to_main_button())  # type: ignore
         return
     await call.message.edit_text(  # type: ignore
-        "🚨 Список жалоб:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages)
+        "🆕 Новые жалобы:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages, reviewed=False)
     )
 
 
-@admin_router.callback_query(F.data.startswith("admin:reports_page:"), AdminStates.reports_menu)
-async def reports_page(call: CallbackQuery, admin_service: AdminService):
-    page = int(call.data.split(":")[-1])
-    reports, page, total_pages = await admin_service.get_reports_page(page)
+@admin_router.callback_query(F.data == "admin:reports:reviewed")
+async def show_reviewed_reports(call: CallbackQuery, state: FSMContext, admin_service: AdminService):
+    await _cleanup_profile_message(state, call.message.chat.id, call.message.bot)  # type: ignore
+    await state.set_state(AdminStates.reports_menu)
+    reports, page, total_pages = await admin_service.get_reports_page(1, reviewed=True)
+    if not reports:
+        await call.message.edit_text("Рассмотренных жалоб нет.", reply_markup=kb.back_to_main_button())  # type: ignore
+        return
     await call.message.edit_text(  # type: ignore
-        "🚨 Список жалоб:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages)
+        "✅ Рассмотренные жалобы:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages, reviewed=True)
+    )
+
+
+@admin_router.callback_query(F.data.startswith("admin:new_reports_page:"), AdminStates.reports_menu)
+async def new_reports_page(call: CallbackQuery, admin_service: AdminService):
+    page = int(call.data.split(":")[-1])
+    reports, page, total_pages = await admin_service.get_reports_page(page, reviewed=False)
+    await call.message.edit_text(  # type: ignore
+        "🆕 Новые жалобы:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages, reviewed=False)
+    )
+
+
+@admin_router.callback_query(F.data.startswith("admin:reviewed_reports_page:"), AdminStates.reports_menu)
+async def reviewed_reports_page(call: CallbackQuery, admin_service: AdminService):
+    page = int(call.data.split(":")[-1])
+    reports, page, total_pages = await admin_service.get_reports_page(page, reviewed=True)
+    await call.message.edit_text(  # type: ignore
+        "✅ Рассмотренные жалобы:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages, reviewed=True)
     )
 
 
 @admin_router.callback_query(F.data.startswith("admin:report:"), AdminStates.reports_menu)
 async def show_report_detail(call: CallbackQuery, state: FSMContext, admin_service: AdminService):
     report_id = int(call.data.split(":")[-1])
-    report = await admin_service.get_report_detail(report_id)
-    if not report:
+    result = await admin_service.get_report_detail(report_id)
+    if not result:
         await call.answer("Жалоба не найдена.", show_alert=True)
         return
+    report, reporter, target = result
     await state.set_state(AdminStates.report_detail)
     await state.update_data(viewed_report_id=report_id)
+
+    def format_user(u) -> str:
+        if not u:
+            return "неизвестно"
+        name = u.name or "Без имени"
+        uname = f" @{u.username}" if u.username else ""
+        return f"<a href='tg://user?id={u.tg_id}'>{name}</a>{uname}"
+
     lines = [
         f"🚨 <b>Жалоба #{report.id}</b>",
-        f"От: <code>{report.reporter_user_id}</code>",
-        f"На: <code>{report.target_user_id}</code>",
+        f"От: {format_user(reporter)}",
+        f"На: {format_user(target)}",
         f"Комментарий: {report.comment or '—'}",
         f"Создана: {report.created_at.strftime('%d.%m.%Y %H:%M')}",
         f"Рассмотрена: {'✅ Да' if report.reviewed_at else '❌ Нет'}",
     ]
     await call.message.edit_text("\n".join(lines), reply_markup=kb.report_detail_keyboard(report.id, report.target_user_id))  # type: ignore
 
+    if target:
+        profile_text = f"{target.name}, {target.age}, {target.city} - {target.interests}"
+        if target.photo_id:
+            msg = await call.message.answer_photo(photo=target.photo_id, caption=f"👤 Анкета: {profile_text}")
+        else:
+            msg = await call.message.answer(f"👤 Анкета (без фото): {profile_text}")
+        await state.update_data(profile_message_id=msg.message_id)
+
 
 @admin_router.callback_query(F.data.startswith("admin:dismiss_report:"), AdminStates.report_detail)
-async def dismiss_report(call: CallbackQuery, admin_service: AdminService):
+async def dismiss_report(call: CallbackQuery, state: FSMContext, admin_service: AdminService):
     report_id = int(call.data.split(":")[-1])
     await admin_service.dismiss_report(report_id)
     await call.answer("Жалоба отклонена.", show_alert=True)
-    reports, page, total_pages = await admin_service.get_reports_page(1)
+    await _cleanup_profile_message(state, call.message.chat.id, call.message.bot)  # type: ignore
+    reports, page, total_pages = await admin_service.get_reports_page(1, reviewed=False)
+    if not reports:
+        await call.message.edit_text("Новых жалоб нет.", reply_markup=kb.back_to_main_button())  # type: ignore
+        return
     await call.message.edit_text(  # type: ignore
-        "🚨 Список жалоб:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages)
+        "🆕 Новые жалобы:", reply_markup=kb.reports_list_keyboard(reports, page, total_pages, reviewed=False)
     )
 
 
